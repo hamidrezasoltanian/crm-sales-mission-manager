@@ -1,0 +1,24 @@
+[Unit]
+Description=Sales Mission Manager Frontend Service
+After=network.target sales-mission-manager-backend.service
+Requires=network.target
+
+[Service]
+Type=simple
+User=hamidreza
+WorkingDirectory=/home/hamidreza/App/sales-mission-manager/frontend
+Environment="NEXT_PUBLIC_API_URL=http://localhost:2001/api"
+ExecStart=/usr/bin/npm run dev
+Restart=always
+RestartSec=10
+StandardOutput=append:/tmp/frontend-service.log
+StandardError=append:/tmp/frontend-service-error.log
+
+# Kill processes on stop
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
+

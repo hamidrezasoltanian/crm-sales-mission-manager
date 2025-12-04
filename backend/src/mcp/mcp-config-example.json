@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "center-suggestions": {
+      "command": "node",
+      "args": [
+        "/home/hamidreza/App/sales-mission-manager/backend/src/mcp/centerSuggestionsServer.js"
+      ],
+      "env": {
+        "DB_PATH": "/home/hamidreza/App/sales-mission-manager/backend/data",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+
+

@@ -1,0 +1,24 @@
+[Unit]
+Description=Sales Mission Manager Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=hamidreza
+WorkingDirectory=/home/hamidreza/App/sales-mission-manager/backend
+Environment="PORT=2001"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=append:/tmp/backend-service.log
+StandardError=append:/tmp/backend-service-error.log
+
+# Kill processes on stop
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+
