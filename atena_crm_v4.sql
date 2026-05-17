@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `provinces` (
 -- BUG FIX: province_id اضافه شد (برای تهران = 'tehran')
 -- ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `centers` (
-  `id`          VARCHAR(20)   NOT NULL,
+  `id`          VARCHAR(40)   NOT NULL,
   `province_id` VARCHAR(20)   NOT NULL DEFAULT 'tehran',  -- ← NEW
   `row_num`     INT           NOT NULL DEFAULT 0,
   `name`        VARCHAR(200)  NOT NULL DEFAULT '',

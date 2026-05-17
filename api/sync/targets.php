@@ -21,11 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (!$username) jsonOut(['ok' => false, 'err' => 'missing username'], 400);
 
         $stmt = $pdo->prepare("
-            SELECT year_month, target_type, entry_target, lead_opp_target,
+            SELECT `year_month`, target_type, entry_target, lead_opp_target,
                    contract_target, revenue_target
             FROM monthly_targets
-            WHERE username = ?
-            ORDER BY year_month DESC
+            WHERE `username` = ?
+            ORDER BY `year_month` DESC
         ");
         $stmt->execute([$username]);
         $targets = $stmt->fetchAll();
@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     if (!$username && $isManager) {
         $stmt = $pdo->query("
-            SELECT username, year_month, entry_target, lead_opp_target, contract_target, revenue_target
-            FROM monthly_targets ORDER BY year_month DESC
+            SELECT username, `year_month`, entry_target, lead_opp_target, contract_target, revenue_target
+            FROM monthly_targets ORDER BY `year_month` DESC
         ");
         $byUser = [];
         foreach ($stmt->fetchAll() as $r) {
@@ -78,15 +78,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     if ($ym) {
-        $stmt = $pdo->prepare("SELECT * FROM monthly_targets WHERE username=? AND year_month=? LIMIT 1");
+        $stmt = $pdo->prepare("SELECT * FROM monthly_targets WHERE username=? AND `year_month`=? LIMIT 1");
         $stmt->execute([$username, $ym]);
         $row = $stmt->fetch();
         jsonOut(['ok' => true, 'target' => $row ?: null]);
     }
 
     $stmt = $pdo->prepare("
-        SELECT year_month, entry_target, lead_opp_target, contract_target, revenue_target
-        FROM monthly_targets WHERE username=? ORDER BY year_month DESC
+        SELECT `year_month`, entry_target, lead_opp_target, contract_target, revenue_target
+        FROM monthly_targets WHERE username=? ORDER BY `year_month` DESC
     ");
     $stmt->execute([$username]);
     jsonOut(['ok' => true, 'username' => $username, 'targets' => $stmt->fetchAll()]);
@@ -101,7 +101,7 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $stmt = $pdo->prepare("
     INSERT INTO monthly_targets
-        (username, year_month, target_type, entry_target, lead_opp_target, contract_target, revenue_target)
+        (username, `year_month`, target_type, entry_target, lead_opp_target, contract_target, revenue_target)
     VALUES (?, ?, 'overall', ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
         entry_target    = VALUES(entry_target),

@@ -2,10 +2,12 @@
 // api/config.php — تنظیمات مرکزی
 // ⚠ این فایل را در .gitignore قرار دهید و DB_PASS را تغییر دهید
 
-define('DB_HOST', 'localhost');
+define('DB_HOST', '127.0.0.1');
+define('DB_PORT', 3307);
+define('DB_SOCKET', '/tmp/mysql.sock');
 define('DB_NAME', 'atena_crm');
 define('DB_USER', 'atena_user');
-define('DB_PASS', 'YOUR_PASSWORD_HERE');
+define('DB_PASS', 'test1234');
 define('DB_CHARSET', 'utf8mb4');
 
 define('SESSION_HOURS', 12);

@@ -68,9 +68,12 @@ $logStmt = $pdo->prepare("
     ORDER BY a.changed_at DESC
     LIMIT ? OFFSET ?
 ");
+foreach ($params as $i => $val) {
+    $logStmt->bindValue($i + 1, $val);
+}
 $logStmt->bindValue(count($params) + 1, $limit,  PDO::PARAM_INT);
 $logStmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
-$logStmt->execute($params);
+$logStmt->execute();
 $rows = $logStmt->fetchAll();
 
 $summaryStmt = $pdo->prepare("

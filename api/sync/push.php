@@ -75,7 +75,7 @@ function saveRecord(PDO $pdo, string $type, string $id, array $e, string $userna
     $pdo->prepare("
         INSERT INTO record_edits
             (record_type,record_id,status,lead_type,potential,center_type,followup_date,products,last_activity)
-        VALUES(?,?,?,?,?,?,?,?,?)
+        VALUES(?,?,?,COALESCE(?,'ندارد'),COALESCE(?,3),COALESCE(?,''),?,?,?)
         ON DUPLICATE KEY UPDATE
             status=COALESCE(VALUES(status),status),
             lead_type=COALESCE(VALUES(lead_type),lead_type),
