@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<!-- پورتال مدیریت فروش آتنا زیست درمان -->
+<html dir="rtl" lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پورتال مدیریت مراکز فروش</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="cms.css">
+</head>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">🏥 پورتال فروش</div>
+    <div class="login-sub">سیستم مدیریت مراکز و استان‌ها</div>
+    <input type="text" id="usernameInput" placeholder="نام کاربری" autocomplete="username">
+    <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">ورود</button>
+    <div class="login-error" id="loginError">نام کاربری یا رمز عبور اشتباه است</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- NAVBAR -->
+  <div class="navbar">
+    <div class="navbar-brand">🏥 پورتال مدیریت مراکز فروش</div>
+    <div class="navbar-user">
+      <span class="user-badge" id="userBadge" title="تغییر رمز عبور" onclick="openPassModal()">👤 <span id="userBadgeText"></span></span>
+      <button class="nav-btn" id="userMgmtBtn" style="display:none" onclick="openUserMgmt()">👥 کاربران</button>
+      <button class="nav-btn" id="superAdminBtn" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#92400e" onclick="openSuperAdminPanel()">🔑 سیستم</button>
+      <button class="nav-btn" onclick="openGSearch()" title="جستجوی سراسری">🔍</button>
+      <button class="nav-btn" onclick="window.print()" title="چاپ">🖨</button>
+      <span id="saveBadge" style="font-size:11px;color:#16a34a;font-weight:600;min-width:80px;text-align:center"></span>
+      <span id="syncStatusBtn" class="sync-off" title="سرور وصل نیست — آفلاین" onclick="syncNow()">📴</span>
+      <button class="nav-btn" onclick="toggleBackupPanel()">💾 بک‌آپ</button>
+      <button class="nav-btn" id="addCenterBtn" style="display:none;background:rgba(34,197,94,.25);border-color:rgba(34,197,94,.5)" onclick="openAddCenterTehran()">➕ مرکز جدید</button>
+      <button class="nav-btn success" onclick="doPrint()">🖨 چاپ</button>
+      <button class="nav-btn" onclick="doPDF()" title="چاپ → Save as PDF">📄 PDF</button>
+      <button class="nav-btn danger" onclick="doLogout()">خروج</button>
+    </div>
+  </div>
+
+  <!-- BACKUP PANEL -->
+  <div class="backup-panel no-print" id="backupPanel" style="display:none">
+    <h3>💾 بک‌آپ</h3>
+    <button class="btn-backup" onclick="exportBackup()">⬇ دانلود بک‌آپ</button>
+    <button class="btn-restore" onclick="document.getElementById('restoreFileInput').click()">⬆ بازیابی</button>
+    <input type="file" id="restoreFileInput" accept=".json" onchange="restoreBackup(event)">
+    <div id="managerMergeArea" style="display:none">
+      <button class="btn-merge" onclick="document.getElementById('mergeFileInput').click()">🔀 ادغام بک‌آپ‌ها (مدیر)</button>
+      <input type="file" id="mergeFileInput" accept=".json" multiple onchange="mergeBackups(event)">
+    </div>
+    <span class="op-result" id="opResult"></span>
+  </div>
+
+  <!-- TODAY BANNER -->
+  <div class="today-banner no-print" id="todayBanner">
+    <h3>📅 پیگیری‌های امروز</h3>
+    <div class="today-items" id="todayItems"></div>
+  </div>
+  <!-- STALL BANNER -->
+  <div class="stall-banner no-print" id="stallBanner">
+    <h3 id="stallBannerText"></h3>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard no-print" id="dashboardArea"></div>
+
+  <!-- PRINT HEADER -->
+  <div class="print-header" id="printHeader">
+    <h2 id="printTitle"></h2>
+    <p id="printSubtitle"></p>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs-bar no-print">
+    <button class="tab-btn active" id="tabProvinces" onclick="switchTab('provinces')">🗺 استان‌ها</button>
+    <button class="tab-btn" id="tabCenters" onclick="switchTab('centers')">🏥 مراکز تهران</button>
+    <button class="tab-btn" id="tabCalendar" onclick="switchTab('calendar')">📅 تقویم</button>
+    <button class="tab-btn" id="tabChecklist" onclick="switchTab('checklist')">✅ چک‌لیست روزانه</button>
+    <button class="tab-btn" id="tabMgrDash" style="display:none" onclick="switchTab('mgrdash')">📊 گزارش مدیر</button>
+    <button class="tab-btn" id="tabActivity" onclick="switchTab('activity')">📋 فعالیت من</button>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters-bar no-print">
+    <input class="search-input" type="text" id="searchInput" placeholder="🔍  جستجو در نام..." oninput="renderTable()">
+    <span class="filter-label">پتانسیل:</span>
+    <select id="filterPot" onchange="renderTable()">
+      <option value="">همه</option>
+      <option value="1">۱ — بالا</option><option value="2">۲</option>
+      <option value="3">۳</option><option value="4">۴ — پایین</option>
+    </select>
+    <span class="filter-label">وضعیت:</span>
+    <select id="filterStatus" onchange="renderTable()">
+      <option value="">همه</option>
+      <option>بدون تماس</option><option>تماس اولیه</option>
+      <option>ملاقات انجام شد</option><option>پیشنهاد ارسال شد</option>
+      <option>قرارداد بسته شد</option><option>غیرفعال</option>
+    </select>
+    <span class="filter-label" id="lblLead">سرنخ:</span>
+    <select id="filterLead" onchange="renderTable()" style="display:none">
+      <option value="">همه</option>
+      <option>مشتری</option><option>لید</option><option>فرصت</option>
+      <option>سرنخ</option><option>ندارد</option><option>بدون مصرف</option>
+    </select>
+    <span class="filter-label" id="lblType">نوع:</span>
+    <select id="filterType" onchange="renderTable()" style="display:none"></select>
+    <span class="filter-label" id="lblOwner" style="display:none">مسئول:</span>
+    <select id="filterOwner" onchange="renderTable()" style="display:none">
+      <option value="">همه</option>
+    </select>
+    <span class="filter-label">برچسب:</span>
+    <select id="filterTag" onchange="onFilterTagChange(this.value)">
+      <option value="">همه</option>
+    </select>
+    <!-- موج ۵: View switcher -->
+    <span class="view-switcher no-print">
+      <button class="view-btn active" id="viewBtnList"   onclick="setViewMode('list')"   title="نمایش لیست">📋</button>
+      <button class="view-btn"        id="viewBtnKanban" onclick="setViewMode('kanban')" title="نمایش کانبان">📊</button>
+      <button class="view-btn"        id="viewBtnCard"   onclick="setViewMode('card')"   title="نمایش کارت">🗂</button>
+      <button class="view-btn"        id="viewBtnMap"    onclick="setViewMode('map')"    title="نمایش نقشه">🗺</button>
+    </span>
+    <button class="btn-action btn-excel" onclick="exportExcel()">📊 اکسل</button>
+    <button class="btn-action btn-print no-print" onclick="doPrint()">🖨 چاپ</button>
+    <button class="btn-action no-print" onclick="doPDF()" title="چاپ → Save as PDF">📄 PDF</button>
+  </div>
+
+  <!-- TABLE / ALTERNATIVE VIEWS -->
+  <div class="table-wrap">
+    <!-- view: list (پیش‌فرض) -->
+    <table id="mainTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <!-- view: kanban / card / map (توسط JS پر می‌شوند) -->
+    <div id="kanbanView" style="display:none"></div>
+    <div id="cardView"   style="display:none"></div>
+    <div id="mapView"    style="display:none"></div>
+    <div class="row-count no-print" id="rowCount"></div>
+  </div>
+  <!-- CHECKLIST PANEL -->
+  <div id="checklistPanel">
+  <div class="ck-date-bar">
+    <label>📅 تاریخ:</label>
+    <button class="ck-nav-btn" onclick="ckNavDay(-1)">◀</button>
+    <input type="date" class="ck-date-input" id="ckDateInput" onchange="ckLoadDate()">
+    <button class="ck-nav-btn" onclick="ckNavDay(1)">▶</button>
+    <button class="ck-nav-btn" onclick="ckGoToday()" style="background:#dbeafe;border-color:#93c5fd">امروز</button>
+    <span class="ck-score-badge" id="ckScoreBadge">۰ / ۲۷</span>
+  </div>
+  <div class="ck-history-bar" id="ckHistoryBar"></div>
+  <div id="ckSections"></div>
+  <div class="ck-save-toast" id="ckToast">✅ ذخیره شد</div>
+</div>
+<!-- MANAGER DASHBOARD PANEL -->
+<div id="mgrDashPanel" style="display:none;padding:20px;max-width:1100px;margin:0 auto"></div>
+
+<!-- CALENDAR PANEL (موج ۴) -->
+<div id="calendarPanel" style="display:none;padding:14px;max-width:1100px;margin:0 auto">
+  <div class="cal-toolbar">
+    <div class="cal-nav-group">
+      <button class="cal-nav-btn" onclick="calNav(-1)">◀</button>
+      <button class="cal-nav-btn cal-today-btn" onclick="calGoToday()">امروز</button>
+      <button class="cal-nav-btn" onclick="calNav(1)">▶</button>
+      <span class="cal-title" id="calTitleSpan"></span>
+    </div>
+    <div class="cal-view-group">
+      <button class="cal-view-btn active" id="calViewMonth" onclick="calSetView('month')">ماهانه</button>
+      <button class="cal-view-btn" id="calViewWeek" onclick="calSetView('week')">هفتگی</button>
+      <button class="cal-view-btn" id="calViewList" onclick="calSetView('list')">لیست</button>
+      <button class="cal-new-btn" onclick="openEventModal()">➕ رویداد جدید</button>
+    </div>
+  </div>
+  <div id="calendarBody"></div>
+</div>
+</div>
+
+
+<!-- JALALI DATE PICKER POPUP -->
+<div id="jdpPopup" class="jdp-wrap" style="display:none"></div>
+
+<!-- ACTIVITY PANEL -->
+<div id="activityPanel"></div>
+
+<!-- GLOBAL SEARCH -->
+<div class="gsearch-overlay no-print" id="gsearchOverlay" onclick="closeGSearch(event)">
+  <div class="gsearch-box" onclick="event.stopPropagation()">
+    <div class="gsearch-top">
+      <span style="font-size:14px;color:#94a3b8;flex-shrink:0">🔍</span>
+      <input class="gsearch-inp" id="gsearchInp" placeholder="جستجو در همه مراکز، استان‌ها..." oninput="runGSearch(this.value)" autocomplete="off">
+      <button class="gsearch-x" onclick="closeGSearch()">✕</button>
+    </div>
+    <div class="gsearch-results" id="gsearchResults"><div class="gsearch-empty">نام مرکز یا استان را تایپ کنید</div></div>
+  </div>
+</div>
+
+<!-- MONTHLY TARGETS MODAL -->
+<div class="modal-overlay no-print" id="tgtModal" style="display:none" onclick="closeTgtModal(event)">
+  <div class="modal-card user-mgmt-card" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>🎯 تارگت ماهانه</h3><button class="modal-close" onclick="closeTgtModal()">✕</button></div>
+    <div class="modal-body" id="tgtModalBody"></div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-save-pass" onclick="saveTgts()">ذخیره تارگت‌ها</button>
+      <button class="btn-cancel" onclick="closeTgtModal()">بستن</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT PICKER (shared popover) -->
+<div class="prod-picker" id="prodPickerEl" style="display:none"></div>
+
+<!-- CENTER DETAIL MODAL -->
+<div class="cdm-overlay no-print" id="centerDetailModal" style="display:none" onclick="closeCenterModal(event)">
+  <div class="cdm-card" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <button class="cdm-close" onclick="closeCenterModal()">✕</button>
+      <span class="cdm-title" id="cdmTitle"></span>
+      <span class="cdm-prov-badge" id="cdmProvBadge"></span>
+    </div>
+    <div class="cdm-body" id="cdmBody">
+      <!-- وضعیت + سرنخ + follow-up -->
+      <div class="cdm-section">
+        <div class="cdm-sec-title">وضعیت</div>
+        <div class="cdm-fields">
+          <div class="cdm-field-wrap">
+            <div class="cdm-field-lbl">وضعیت پیگیری</div>
+            <select id="cdmStatus" class="status-sel st-0" onchange="cdmOnStatus(this)"></select>
+          </div>
+          <div class="cdm-field-wrap">
+            <div class="cdm-field-lbl">سرنخ / مشتری</div>
+            <select id="cdmLead" class="lead-sel ls-ندارد" onchange="cdmOnLead(this)"></select>
+          </div>
+          <div class="cdm-field-wrap">
+            <div class="cdm-field-lbl">پیگیری بعدی</div>
+            <input type="text" id="cdmFollowup" class="followup-inp" placeholder="۱۴۰۴/۰۲/۲۰" readonly style="cursor:pointer;width:105px" onclick="JDP.open(this,cdmOnFollowup)">
+          </div>
+          <div class="cdm-field-wrap">
+            <div class="cdm-field-lbl">پتانسیل</div>
+            <select id="cdmPot" class="ed-sel" onchange="cdmOnPot(this)">
+              <option value="1">۱ — بالا</option>
+              <option value="2">۲</option>
+              <option value="3">۳</option>
+              <option value="4">۴ — پایین</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- محصولات -->
+      <div class="cdm-section">
+        <div class="cdm-sec-title">محصولات مورد علاقه</div>
+        <div id="cdmProds" class="cdm-fields"></div>
+      </div>
+      <!-- یادداشت‌ها -->
+      <div class="cdm-section">
+        <div class="cdm-sec-title">یادداشت‌ها</div>
+        <div class="cdm-notes-list" id="cdmNotesList"></div>
+        <div class="cdm-add-note">
+          <textarea class="cdm-note-inp" id="cdmNoteInp" rows="2" placeholder="یادداشت جدید..."></textarea>
+          <button class="cdm-note-btn" onclick="cdmAddNote()">ثبت</button>
+        </div>
+      </div>
+      <!-- تاریخچه -->
+      <div class="cdm-section">
+        <div class="cdm-sec-title">تاریخچه تغییرات</div>
+        <div class="cdm-audit-list" id="cdmAuditList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROVINCE CENTERS MODAL -->
+<div class="modal-overlay no-print" id="provModal" style="display:none" onclick="closeProvModal(event)">
+  <div class="modal-card prov-modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="provModalTitle">🏥 مراکز استان</h3>
+      <button class="modal-close" onclick="closeProvModal()">✕</button>
+    </div>
+    <div class="prov-toolbar no-print">
+      <input class="mod-srch" id="pcSrch" placeholder="🔍 جستجو..." oninput="pcRender()">
+      <select class="ed-sel" id="pcFPot" onchange="pcRender()" style="width:110px">
+        <option value="">همه پتانسیل</option>
+        <option value="1">۱ — بالا</option><option value="2">۲</option>
+        <option value="3">۳</option><option value="4">۴ — پایین</option>
+      </select>
+      <select class="ed-sel" id="pcFStat" onchange="pcRender()" style="width:130px">
+        <option value="">همه وضعیت</option>
+        <option>بدون تماس</option><option>تماس اولیه</option>
+        <option>ملاقات انجام شد</option><option>پیشنهاد ارسال شد</option>
+        <option>قرارداد بسته شد</option><option>غیرفعال</option>
+      </select>
+      <button class="btn-add-row" onclick="pcAddOpen()">➕ افزودن مرکز</button>
+    </div>
+    <div class="modal-body" style="padding:0;overflow-x:auto;overflow-y:auto;max-height:65vh">
+      <div class="pc-rowcount" id="pcRowCount"></div>
+      <table class="pc-tbl">
+        <thead><tr>
+          <th>#</th>
+          <th style="min-width:210px">نام مرکز</th>
+          <th style="width:70px">پتانسیل</th>
+          <th style="min-width:130px">نوع</th>
+          <th style="min-width:100px">سرنخ/مشتری</th>
+          <th style="min-width:80px">مسئول</th>
+          <th style="min-width:135px">وضعیت پیگیری</th>
+          <th style="width:115px">پیگیری بعدی</th>
+          <th style="width:52px">یادداشت</th>
+          <th style="width:30px"></th>
+        </tr></thead>
+        <tbody id="pcTbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="closeProvModal()">بستن</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CENTER MODAL (Tehran + Province) -->
+<div class="modal-overlay no-print" id="addCenterModal" style="display:none" onclick="closeAddCenter(event)">
+  <div class="modal-card pass-modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>➕ افزودن مرکز جدید</h3>
+      <button class="modal-close" onclick="closeAddCenter()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">نام مرکز</div>
+      <input type="text" class="pass-field" id="newCenterName" placeholder="نام مرکز را وارد کنید">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">نوع</div>
+      <input type="text" class="pass-field" id="newCenterType" placeholder="نوع مرکز">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">پتانسیل</div>
+      <select class="pass-field" id="newCenterPot" style="direction:rtl;cursor:pointer">
+        <option value="1">۱ — بالا</option><option value="2">۲</option>
+        <option value="3" selected>۳</option><option value="4">۴ — پایین</option>
+      </select>
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">سرنخ/مشتری</div>
+      <select class="pass-field" id="newCenterLead" style="direction:rtl;cursor:pointer">
+        <option>سرنخ</option><option>لید</option><option>فرصت</option>
+        <option>مشتری</option><option>ندارد</option>
+      </select>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="closeAddCenter()">انصراف</button>
+      <button class="btn-save-pass" onclick="confirmAddCenter()">افزودن</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES MODAL -->
+<div class="modal-overlay no-print" id="notesModal" style="display:none" onclick="closeNotesModal(event)">
+  <div class="modal-card" style="max-width:600px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="notesModalTitle">📝 یادداشت‌ها</h3>
+      <button class="modal-close" onclick="closeNotesModal()">✕</button>
+    </div>
+    <div class="modal-body" id="notesList"></div>
+    <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:8px">
+      <textarea class="new-note-ta" id="newNoteTa" placeholder="یادداشت جدید را اینجا بنویسید..."></textarea>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn-add-note" onclick="addNote()">➕ افزودن یادداشت</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD MODAL -->
+<div class="modal-overlay no-print" id="passModal" style="display:none" onclick="closePassModal(event)">
+  <div class="modal-card pass-modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🔐 تغییر رمز عبور</h3>
+      <button class="modal-close" onclick="closePassModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">رمز فعلی</div>
+      <input type="password" class="pass-field" id="passOld" placeholder="رمز فعلی را وارد کنید">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">رمز جدید</div>
+      <input type="password" class="pass-field" id="passNew" placeholder="رمز جدید (حداقل ۴ کاراکتر)">
+      <div style="margin-bottom:6px;font-size:12px;color:#64748b">تکرار رمز جدید</div>
+      <input type="password" class="pass-field" id="passConfirm" placeholder="رمز جدید را تکرار کنید">
+      <div class="pass-error" id="passError"></div>
+      <div style="color:#22c55e;font-size:12px;display:none" id="passSuccess">✅ رمز با موفقیت تغییر یافت</div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="closePassModal()">انصراف</button>
+      <button class="btn-save-pass" onclick="changePassword()">ذخیره رمز جدید</button>
+    </div>
+  </div>
+</div>
+
+<!-- USER MANAGEMENT MODAL -->
+<div class="modal-overlay no-print" id="userMgmtModal" style="display:none" onclick="closeUserMgmt(event)">
+  <div class="modal-card user-mgmt-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>👥 مدیریت کاربران</h3>
+      <button class="modal-close" onclick="closeUserMgmt()">✕</button>
+    </div>
+    <div class="modal-body" id="userMgmtBody"></div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-save-pass" onclick="openAddUserForm()">➕ کارشناس جدید</button>
+      <button class="btn-cancel" onclick="closeUserMgmt()">بستن</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT USER MODAL -->
+<div class="modal-overlay no-print" id="addUserModal" style="display:none" onclick="closeAddUser(event)">
+  <div class="modal-card pass-modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="addUserTitle">➕ کارشناس جدید</h3>
+      <button class="modal-close" onclick="closeAddUser()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>نام نمایشی</label>
+        <input type="text" class="form-inp" id="auName" placeholder="مثلاً: احمدی">
+      </div>
+      <div class="form-row">
+        <label>نام کاربری (برای لاگین)</label>
+        <input type="text" class="form-inp" id="auUsername" placeholder="مثلاً: ahmadi" style="direction:ltr">
+      </div>
+      <div class="form-row">
+        <label>نقش</label>
+        <input type="text" class="form-inp" id="auRole" placeholder="مثلاً: کارشناس تمام‌وقت">
+      </div>
+      <div class="form-row" id="auPassRow">
+        <label>رمز عبور اولیه</label>
+        <input type="text" class="form-inp" id="auPass" placeholder="حداقل ۴ کاراکتر" style="direction:ltr">
+      </div>
+      <div class="pass-error" id="addUserError" style="display:none"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="closeAddUser()">انصراف</button>
+      <button class="btn-save-pass" id="addUserSaveBtn" onclick="saveUserForm()">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<!-- REASSIGN MODAL -->
+<div class="modal-overlay no-print" id="reassignModal" style="display:none" onclick="event.stopPropagation()">
+  <div class="modal-card pass-modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🔄 انتقال مراکز</h3>
+      <button class="modal-close" onclick="document.getElementById('reassignModal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="reassignInfo" style="font-size:12px;color:#475569;margin-bottom:14px"></div>
+      <div class="form-row">
+        <label>انتقال به کارشناس:</label>
+        <select class="form-inp" id="reassignTarget" style="direction:rtl;cursor:pointer"></select>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="document.getElementById('reassignModal').style.display='none'">انصراف</button>
+      <button class="btn-save-pass" onclick="confirmReassign()">انتقال و غیرفعال‌سازی</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUPER ADMIN PANEL -->
+<div class="modal-overlay no-print" id="superAdminModal" style="display:none" onclick="closeSuperAdmin(event)">
+  <div class="modal-card user-mgmt-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🔑 پنل مدیر سیستم</h3>
+      <button class="modal-close" onclick="closeSuperAdmin()">✕</button>
+    </div>
+    <div class="modal-body" id="superAdminBody"></div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn-cancel" onclick="closeSuperAdmin()">بستن</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT TRAIL MODAL -->
+<div class="modal-overlay no-print" id="auditModal" style="display:none" onclick="closeAuditModal(event)">
+  <div class="modal-card" style="max-width:600px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="auditModalTitle">📋 تاریخچه فعالیت</h3>
+      <button class="modal-close" onclick="closeAuditModal()">✕</button>
+    </div>
+    <div class="modal-body" id="auditList"></div>
+  </div>
+</div>
+
+
+<div id="saveToast"></div>
+<script src="crm.js"></script>
+</body>
+</html>
