@@ -588,6 +588,24 @@ function g2j(gy,gm,gd){
   for(var j=0;j<11&&j_d_no>=j_dm[j];++j)j_d_no-=j_dm[j];
   return[jy,j+1,j_d_no+1];
 }
+function j2g(jy,jm,jd){
+  var j_dm=[31,31,31,31,31,31,30,30,30,30,30,29];
+  var jy1=jy-979; var jm1=jm-1;
+  var j_np=Math.floor(jy1/33); var rem=jy1%33;
+  var j_d_no=j_np*12053+Math.floor(rem/4)*1461+(rem%4)*365+(rem%4>0?1:0);
+  for(var i=0;i<jm1;i++)j_d_no+=j_dm[i];
+  j_d_no+=jd-1;
+  var g_d_no=j_d_no+79;
+  var gy=1600+400*Math.floor(g_d_no/146097); g_d_no%=146097;
+  var leap=true;
+  if(g_d_no>=36525){g_d_no--;gy+=100*Math.floor(g_d_no/36524);g_d_no%=36524;if(g_d_no>=365)g_d_no++;else leap=false;}
+  gy+=4*Math.floor(g_d_no/1461); g_d_no%=1461;
+  if(g_d_no>=366){leap=false;g_d_no--;gy+=Math.floor(g_d_no/365);g_d_no%=365;}
+  var g_dm=[31,29,31,30,31,30,31,31,30,31,30,31];
+  if(!leap)g_dm[1]=28;
+  var gm=0;while(gm<12&&g_d_no>=g_dm[gm]){g_d_no-=g_dm[gm];gm++;}
+  return[gy,gm+1,g_d_no+1];
+}
 function todayJalali(){
   var d=new Date();
   var j=g2j(d.getFullYear(),d.getMonth()+1,d.getDate());
@@ -1149,6 +1167,9 @@ function _doLoginSuccess(uKey,usr,p){
 
   // اتصال به سرور در پس‌زمینه
   if(getApiBase()){
+    // بارگذاری فوری از cache تا داده‌های قدیمی نمایش داده شوند
+    _loadStaticFromCache();
+    renderDashboard(); renderTable();
     // FIX: اگر token موجود است (auto-login) نیازی به re-auth نیست
     var existingToken = localStorage.getItem('crm_token');
     var authPromise = (p && !existingToken)
@@ -1584,10 +1605,28 @@ function openCreateTagModal(){
 function renderTable(){
   const isManager=getUser(currentUser).isManager;
   const type=currentTab==='provinces'?'provinces':'centers';
+  const baseData=(currentTab==='provinces')
+    ?(isManager?PROVINCES:PROVINCES.filter(r=>r.owner===currentUser))
+    :(isManager?CENTERS:CENTERS.filter(r=>r.owner===currentUser));
   const data=getFiltered();
   const head=document.getElementById('tableHead');
   const body=document.getElementById('tableBody');
   const STATUS_OPTS=STATUS_LIST.map((s,i)=>`<option class="${STATUS_CLS[i]}">${s}</option>`).join('');
+
+  // نمایش حالت بارگذاری وقتی داده‌ای در دسترس نیست
+  if(baseData.length===0){
+    var msg=getApiBase()
+      ?'⏳ در حال بارگذاری داده‌ها از سرور...'
+      :'⚙️ برای مشاهده داده‌ها، آدرس سرور API را از منوی مدیر سیستم تنظیم کنید.';
+    ['kanbanView','cardView','mapView'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el){el.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">'+msg+'</div>';}
+    });
+    if(head)head.innerHTML='';
+    if(body)body.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">'+msg+'</td></tr>';
+    document.getElementById('rowCount').textContent='';
+    return;
+  }
 
   // FIX: اگر view-mode غیر list است، delegate به render مخصوص
   if(typeof _viewMode !== 'undefined' && _viewMode !== 'list'){
