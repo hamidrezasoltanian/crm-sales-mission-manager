@@ -87,7 +87,7 @@ var _SQ = {
 
   _run: async function() {
     if (this._running || !this._q.length) return;
-    if (!getApiBase()) { setSyncStatus('off'); return; }
+    if (!getApiBase()) { setSyncStatus('err'); showSaveError('آدرس سرور تنظیم نشده'); return; }
 
     // اطمینان از token — بدون ذخیره رمز
     var token = localStorage.getItem('crm_token');
@@ -149,8 +149,6 @@ var _SQ = {
       this._schedRetry();
     } else {
       setSyncStatus('ok');
-      // FIX: _pendingSave پاک شود فقط اگر صف خالی است
-      if (!this._q.length) _pendingSave = false;
       var badge = document.getElementById('saveBadge');
       if (badge) { badge.textContent='✅ ذخیره شد'; setTimeout(function(){badge.textContent='';},2000); }
       // FIX: اگر صف هنوز آیتم دارد ادامه بده
@@ -385,7 +383,7 @@ let notesContext={type:null,id:null,name:''};
 function sk(k){return`crm_${k}_${currentUser}`;}
 function loadEdits(){
   // FIX: localStorage حذف شد — userEdits در RAM زندگی می‌کند
-  // داده‌ها از DB پس از login می‌آیند (syncPull)
+  // داده‌ها از DB پس از login می‌آیند
   userEdits = {provinces:{},centers:{},pc:{},checklist:{}};
 }
 
@@ -399,102 +397,19 @@ async function ensureToken(){
   return false;
 }
 
-// ── beforeunload: تلاش برای ذخیره pending changes ────────
-window.addEventListener('beforeunload',function(e){
-  if(_pendingSave||(typeof _SQ!=='undefined'&&_SQ._q&&_SQ._q.length)){
-    // تلاش sync با sendBeacon (sync request هنگام close)
-    var base=getApiBase();
-    var token=localStorage.getItem('crm_token');
-    if(base&&token&&navigator.sendBeacon){
-      // FIX: token در body ارسال می‌شود (نه URL) تا در لاگ‌های سرور ظاهر نشود
-      var payload=JSON.stringify({
-        _token:token,
-        provinces:userEdits.provinces,
-        centers:userEdits.centers,
-        pc:userEdits.pc||{},
-        checklist:userEdits.checklist||{}
-      });
-      var blob=new Blob([payload],{type:'application/json'});
-      try{
-        navigator.sendBeacon(base+'/sync/push.php',blob);
-      }catch(e){}
-    }
-  }
-});
-
-// ── visibility change: sync هنگام بازگشت به صفحه ────────────
+// ── visibility change: refresh داده‌ها هنگام بازگشت به صفحه ─
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'&&currentUser&&getApiBase()){
-    // اگر pending داریم upload کن
-    if(_pendingSave){syncNow();}
-    // و pull جدیدترین داده‌ها
-    if(typeof syncPull==='function')syncPull();
-    // FIX: داده‌های ثابت (provinces/centers/users/PC) هم refresh
-    // تا اگر مدیر کاربر/مرکز جدید اضافه کرد، فوراً دیده شود
-    if(typeof loadStaticData==='function'){
-      loadStaticData().then(function(){
-        if(typeof rebuildOwnerFilter==='function')rebuildOwnerFilter();
-        if(typeof rebuildTagFilter==='function')rebuildTagFilter();
-        if(typeof renderTable==='function')renderTable();
-      });
-    }
+    loadStaticData().then(function(){
+      if(typeof rebuildOwnerFilter==='function')rebuildOwnerFilter();
+      if(typeof rebuildTagFilter==='function')rebuildTagFilter();
+      if(typeof renderTable==='function')renderTable();
+    }).catch(function(){setSyncStatus('err');});
   }
 });
 
-// ── periodic background sync: هر ۳ دقیقه ─────────────────
-var _bgSyncInterval = setInterval(function(){
-  if(!currentUser||!getApiBase())return;
-  if(document.visibilityState!=='visible')return;  // اگر tab فعال نیست skip
-  if(typeof syncPull==='function')syncPull();
-},3*60*1000);
-
-// ================================================================
-// SYNC NOW — ذخیره فوری همه تغییرات در دیتابیس
-// ================================================================
-var _syncNowTimer = null;
-var _pendingSave = false;
-
 function saveEdits(){
-  // FIX: localStorage حذف — userEdits فقط در RAM
-  // FIX: syncNow حذف — هر فیلد از طریق _SQ (debounced) به /record/edit.php می‌رود
-  // syncNow فقط برای beforeunload و restore backup صدا زده می‌شود
   pruneEdits();
-  _pendingSave = true;
-  setSyncStatus('busy');
-}
-
-async function syncNow(){
-  if(!getApiBase()){setSyncStatus('off');_pendingSave=false;return;}
-  // اطمینان از token
-  var ok = await ensureToken();
-  if(!ok){
-    setSyncStatus('err');
-    // retry بعد از ۵ ثانیه
-    setTimeout(syncNow, 5000);
-    return;
-  }
-  try{
-    var res = await apiCall('POST','/sync/push.php',{
-      provinces: userEdits.provinces,
-      centers:   userEdits.centers,
-      pc:        userEdits.pc||{},
-      checklist: userEdits.checklist||{}
-    });
-    if(res.ok){
-      _pendingSave = false;
-      setSyncStatus('ok');
-      // نشان دادن تیک ذخیره
-      showSaveToast('✅ ذخیره شد');
-    }else{
-      setSyncStatus('err');
-      showSaveToast('⚠️ خطا در ذخیره');
-      setTimeout(syncNow, 8000);
-    }
-  }catch(e){
-    setSyncStatus('err');
-    showSaveToast('⚠️ در انتظار اتصال...');
-    setTimeout(syncNow, 8000);
-  }
 }
 
 function showSaveToast(msg){
@@ -505,21 +420,15 @@ function showSaveToast(msg){
   el._timer=setTimeout(function(){el.style.opacity='0';},2500);
 }
 
-// بارگذاری اولیه از سرور
-async function syncPull(){
-  if(!getApiBase())return;
-  var ok=await ensureToken();
-  if(!ok)return;
-  setSyncStatus('busy');
-  try{
-    var res=await apiCall('GET','/sync/pull.php');
-    if(res.ok&&res.data){
-      mergeServerData(res.data);
-      setSyncStatus('ok');
-      renderDashboard();renderTable();renderTodayBanner();renderStallBanner();
-    }
-  }catch(e){setSyncStatus(e.message==='no_api_base'?'off':'err');}
+
+function showSaveError(msg){
+  var el=document.getElementById("saveToast");
+  if(!el){alert(msg);return;}
+  el.textContent="⛔ "+msg;el.style.opacity="1";el.style.color="#dc2626";
+  clearTimeout(el._timer);
+  el._timer=setTimeout(function(){el.style.opacity="0";el.style.color="";},4000);
 }
+
 
 
 function getEdit(type,id){
@@ -891,7 +800,7 @@ function setSyncStatus(st){
     ok:  {icon:'✅', cls:'sync-ok',  tip:'آخرین sync موفق بود'},
     err: {icon:'⚠️', cls:'sync-err', tip:'خطا در sync — کلیک برای تلاش مجدد'},
     busy:{icon:'🔄', cls:'sync-busy',tip:'در حال sync...'},
-    off: {icon:'📴', cls:'sync-off', tip:'آفلاین — localStorage فعال'}
+    off: {icon:'⛔', cls:'sync-err', tip:'سرور در دسترس نیست'}
   };
   var s=map[st]||map['off'];
   el.textContent=s.icon; el.className=s.cls; el.title=s.tip;
@@ -928,7 +837,6 @@ async function apiCall(method,endpoint,body){
   return data;
 }
 
-// push/pull replaced by syncNow/syncPull above
 
 // ── Merge: ادغام داده سرور با localStorage ─────────────────
 function mergeServerData(serverData){
@@ -1043,14 +951,12 @@ async function loadStaticData(){
     if(res.provinces&&res.provinces.length){
       PROVINCES.length=0;
       res.provinces.forEach(function(p){PROVINCES.push(p);});
-      localStorage.setItem('crm_cache_provs',JSON.stringify(res.provinces));
     }
 
     // مراکز تهران
     if(res.centers&&res.centers.length){
       CENTERS.length=0;
       res.centers.forEach(function(ct){CENTERS.push(ct);});
-      localStorage.setItem('crm_cache_cents',JSON.stringify(res.centers));
     }
 
     // FIX: مراکز استانی از DB (قبلاً hardcoded در PROVINCE_CENTERS_RAW)
@@ -1072,7 +978,7 @@ async function loadStaticData(){
       res.provinceCenters.forEach(function(pc){
         if(pc.owner)window._PC_OWNERS[pc.id]=pc.owner;
       });
-      localStorage.setItem('crm_cache_pc',JSON.stringify({map:pcMap,owners:window._PC_OWNERS}));
+
     }
 
     // FIX (موج ۳): تگ‌ها + اتصالات + ترجیحات
@@ -1109,29 +1015,9 @@ async function loadStaticData(){
     }
 
   }catch(e){
-    // fallback: بارگذاری از cache
-    _loadStaticFromCache();
+    // online-only: بدون fallback — خطا را throw می‌کنیم
+    throw e;
   }
-}
-
-function _loadStaticFromCache(){
-  try{
-    var cp=localStorage.getItem('crm_cache_provs');
-    var cc=localStorage.getItem('crm_cache_cents');
-    var cpc=localStorage.getItem('crm_cache_pc');
-    if(cp){var p=JSON.parse(cp);PROVINCES.length=0;p.forEach(function(r){PROVINCES.push(r);});}
-    if(cc){var ct=JSON.parse(cc);CENTERS.length=0;ct.forEach(function(r){CENTERS.push(r);});}
-    if(cpc){
-      var pcCache=JSON.parse(cpc);
-      if(pcCache.map)Object.keys(pcCache.map).forEach(function(k){PROVINCE_CENTERS_RAW[k]=pcCache.map[k];});
-      if(pcCache.owners)window._PC_OWNERS=pcCache.owners;
-    }
-  }catch(e){}
-}
-
-// بارگذاری از cache هنگام start آفلاین
-function loadStaticCache(){
-  _loadStaticFromCache();
 }
 
 
@@ -1153,51 +1039,31 @@ function _doLoginSuccess(uKey,usr,p){
   }
   if(usr.isSuperAdmin){
     document.getElementById('superAdminBtn').style.display='';
-    // اگه آدرس API تنظیم نشده، یه بار یادآوری کن
-    if(!getApiBase()&&!localStorage.getItem('crm_api_reminded')){
-      localStorage.setItem('crm_api_reminded','1');
+    if(!getApiBase()){
       setTimeout(function(){
-        var url=prompt('برای sync داده، آدرس API را وارد کنید:\n(مثال: https://yoursite.ir/api)\n\nبرای رد کردن Cancel بزنید','');
+        var url=prompt('آدرس API سرور را وارد کنید:\n(مثال: https://yoursite.ir/api)','');
         if(url&&url.trim()){setApiBase(url.trim());checkServerStatus();}
-      },1000);
+        else{alert('بدون آدرس سرور نمی‌توانید از سیستم استفاده کنید.');doLogout();}
+      },500);
     }
   }
   renderDashboard(); switchTab('provinces');
   renderTodayBanner(); renderStallBanner();
 
-  // اتصال به سرور در پس‌زمینه
-  if(getApiBase()){
-    // بارگذاری فوری از cache تا داده‌های قدیمی نمایش داده شوند
-    _loadStaticFromCache();
-    renderDashboard(); renderTable();
-    // FIX: اگر token موجود است (auto-login) نیازی به re-auth نیست
-    var existingToken = localStorage.getItem('crm_token');
-    var authPromise = (p && !existingToken)
-      ? tryServerAuth(uKey, p)
-      : Promise.resolve(!!existingToken);
-
-    authPromise.then(function(ok){
-      if(ok){
-        loadStaticData().then(function(){
-          syncPull().then(function(){
-            if(_pendingSave||Object.keys(userEdits.provinces).length||
-               Object.keys(userEdits.centers).length||Object.keys(userEdits.pc).length){
-              setTimeout(syncNow, 500);
-            }
-            rebuildOwnerFilter();
-            rebuildTagFilter();
-            renderDashboard();
-            renderTable();
-            renderTodayBanner();
-            renderStallBanner();
-          });
-        });
-      }
-    });
-  }else{
-    loadStaticCache();
-    setSyncStatus('off');
-  }
+  // بارگذاری داده‌ها از سرور (اجباری — بدون fallback)
+  loadStaticData().then(function(){
+    rebuildOwnerFilter();
+    rebuildTagFilter();
+    renderDashboard();
+    renderTable();
+    renderTodayBanner();
+    renderStallBanner();
+    setSyncStatus('ok');
+  }).catch(function(e){
+    setSyncStatus('err');
+    showSaveError('بارگذاری داده‌ها ناموفق بود. اتصال سرور را بررسی کنید.');
+    console.error('loadStaticData failed:', e);
+  });
 }
 function doLogout(){
   // FIX: حذف همه کلیدهای session و رمز
@@ -1211,7 +1077,6 @@ function doLogout(){
     if(t&&getApiBase()){fetch(getApiBase()+'/auth/logout.php',{method:'DELETE',headers:{'X-CRM-Token':t}}).catch(function(){});}
   }catch(e){}
   // FIX: پاک‌کردن intervals و _SQ queue (جلوگیری از memory leak)
-  if(typeof _bgSyncInterval!=='undefined'&&_bgSyncInterval){clearInterval(_bgSyncInterval);_bgSyncInterval=null;}
   if(typeof _SQ!=='undefined'){
     _SQ._q=[];
     if(_SQ._retryTimer){clearTimeout(_SQ._retryTimer);_SQ._retryTimer=null;}
@@ -1219,7 +1084,6 @@ function doLogout(){
     _SQ._debounce={};
     _SQ._running=false;
   }
-  if(typeof _syncNowTimer!=='undefined'){clearTimeout(_syncNowTimer);}
   currentUser=null; userEdits={provinces:{},centers:{},pc:{},checklist:{}};
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
