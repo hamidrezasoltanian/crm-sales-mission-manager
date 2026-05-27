@@ -1588,16 +1588,6 @@ function fmtExpiry(d){
   if(isNaN(dt)) return '—';
   return dt.toISOString().split('T')[0]; // YYYY-MM-DD
 }
-// fmtDateTime → Shamsi with time
-function fmtDateTime(d){
-  if(!d) return '—';
-  const dt=new Date(d);
-  if(isNaN(dt)) return '—';
-  const {jy,jm,jd}=_g2j(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
-  const h=String(dt.getHours()).padStart(2,'0');
-  const m=String(dt.getMinutes()).padStart(2,'0');
-  return `${jy}/${String(jm).padStart(2,'0')}/${String(jd).padStart(2,'0')} ${h}:${m}`;
-}
 // daysLeft stays the same (calculation independent of calendar)
 
 function loadS(){
@@ -1640,7 +1630,7 @@ let currentUserId='u1';
 let cpFilterVal='all';
 let invFilterProd='all';
 
-const uid=()=>'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const uid=()=>'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const nextSeq=(t)=>{ S.seq[t]=(S.seq[t]||1000)+1; return (t==='entry'?'RV-':'HV-')+S.seq[t]; };
 const fmt=(n)=>Number(n||0).toLocaleString('fa-IR');
 // fmtDate → Jalali version above
@@ -2311,7 +2301,7 @@ function renderHist(){
     <td>${sbadge(t.status)}</td>
     <td>${imedBadge(t)}</td><td><button class="btn btn-link" onclick="openPrint('${t.id}')">🖨️</button></td></tr>`).join(''):emptyRow(13);
 }
-function exportHist(){ toast('Export در نسخه production با PHP پیاده می‌شود','w'); }
+function exportHist(){ exportTransactionsCSV(); }
 
 // ══════════════════════════════════════════
 // APPROVAL
@@ -2343,6 +2333,7 @@ function renderAppr(){
 }
 function approveTxn(id){
   const t=S.transactions.find(x=>x.id===id); if(!t) return;
+  if(t.type==='exit'&&!confirm(`تأیید خروج ${t.txnNo}؟\nموجودی ${t.qty} عدد از انبار کسر می‌شود.`))return;
   t.status='approved';
   if(t.type==='exit'){
     let rem=t.qty;
@@ -2361,6 +2352,7 @@ function approveTxn(id){
 }
 function rejectTxn(id){
   const t=S.transactions.find(x=>x.id===id); if(!t) return;
+  if(!confirm(`رد کردن ${t.txnNo}؟`))return;
   t.status='rejected'; saveS(); renderAppr(); updateBadges();
   toast(`رد شد — ${t.txnNo}`,'e');
 }
@@ -2418,7 +2410,7 @@ function saveProd(){
   saveS(); closeModal('mProd'); renderProds();
   toast(`کالا ${id?'ویرایش':'اضافه'} شد`);
 }
-function toggleProd(id){const p=S.products.find(x=>x.id===id);if(p){p.active=!p.active;saveS();renderProds();}}
+function toggleProd(id){const p=S.products.find(x=>x.id===id);if(!p)return;if(p.active&&!confirm(`کالای "${p.name}" غیرفعال شود؟`))return;p.active=!p.active;saveS();renderProds();}
 function copyProd(id){
   const src=S.products.find(x=>x.id===id); if(!src) return;
   const copy={...src, id:uid(), name:src.name+' (کپی)', fullName:src.fullName+' (کپی)', active:true};
@@ -2444,7 +2436,10 @@ function renderWhs(){
       <td>${lots.length}</td>
       <td>${fmt(Math.round(val/1000))} ه‌ت</td>
       <td><span class="dot ${w.active?'dot-green':'dot-red'}"></span>${w.active?'فعال':'غیرفعال'}</td>
-      <td><button class="btn btn-link" onclick="openWhModal('${w.id}')">ویرایش</button></td></tr>`;
+      <td style="white-space:nowrap">
+        <button class="btn btn-link" onclick="openWhModal('${w.id}')">ویرایش</button>
+        <button class="btn btn-link" style="color:${w.active?'var(--danger)':'var(--success)'}" onclick="toggleWh('${w.id}')">${w.active?'غیرفعال':'فعال'}</button>
+      </td></tr>`;
   }).join('')||emptyRow(7);
 }
 function openWhModal(id=null){
@@ -2459,6 +2454,7 @@ function openWhModal(id=null){
   ms.value=w?w.managerId||'':'';
   openModal('mWh');
 }
+function toggleWh(id){const w=S.warehouses.find(x=>x.id===id);if(!w)return;if(w.active&&!confirm(`انبار "${w.name}" غیرفعال شود؟`))return;w.active=!w.active;saveS();renderWhs();}
 function saveWh(){
   const id=document.getElementById('mWhId').value;
   const n=document.getElementById('mWhName').value.trim();
@@ -2478,7 +2474,9 @@ function cpFilter(f,el){cpFilt=f;document.querySelectorAll('.tabs .tab').forEach
 function renderCp(){
   const srch=(document.getElementById('cpSearch')?.value||'').toLowerCase().trim();
   let rows=S.counterparties.filter(c=>{
-    if(cpFilt!=='all'&&c.type!==cpFilt) return false;
+    if(cpFilt==='supplier'&&c.type!=='supplier'&&c.type!=='both') return false;
+    if(cpFilt==='customer'&&c.type!=='customer'&&c.type!=='both') return false;
+    if(cpFilt==='both'&&c.type!=='both') return false;
     if(!srch) return true;
     return (c.name||'').toLowerCase().includes(srch)
       ||(c.phone||'').includes(srch)
@@ -2556,7 +2554,7 @@ function saveUser(){
   saveS(); closeModal('mUserEdit'); renderUsers();
   toast(`کاربر ${id?'ویرایش':'اضافه'} شد`);
 }
-function toggleUser(id){const u=S.users.find(x=>x.id===id);if(u){u.active=!u.active;saveS();renderUsers();}}
+function toggleUser(id){const u=S.users.find(x=>x.id===id);if(!u)return;if(u.active&&!confirm(`کاربر "${u.name}" غیرفعال شود؟`))return;u.active=!u.active;saveS();renderUsers();}
 
 // ══════════════════════════════════════════
 // PRICES
@@ -4738,7 +4736,7 @@ function renderSystem(){
       <h3>ℹ️ درباره سیستم</h3>
       <p>WMS آتنا زیست درمان — نسخه پروتوتایپ v8</p>
       <p style="margin-top:4px">برای انتقال به PHP/MySQL با حمیدرضا هماهنگ کنید</p>
-      <div style="margin-top:8px"><span class="badge bg">localStorage</span> <span class="badge bb">Single HTML</span> <span class="badge bp">Prototype</span></div>
+      <div style="margin-top:8px"><span class="badge bg">localStorage</span> <span class="badge bb">Single HTML</span> <span class="badge bp">v14.2</span></div>
     </div>`;
 }
 function exportBackup(){
