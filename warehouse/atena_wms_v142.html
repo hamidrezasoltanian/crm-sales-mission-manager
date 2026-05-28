@@ -539,6 +539,11 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:1px
     <div class="nav" onclick="go('audit')"><span class="ico">📝</span><span class="lbl">لاگ فعالیت</span></div>
     <div class="nav" onclick="openConsignment()"><span class="ico">🔁</span><span class="lbl">امانی‌های فعال</span></div>
   </div>
+  <div class="sb-sect" style="margin-top:auto;padding-top:8px;border-top:1px solid rgba(255,255,255,.1)">
+    <div class="sb-lbl">پیوندها</div>
+    <div class="nav" onclick="location.href='../index.html'" title="پورتال مدیریت مراکز فروش"><span class="ico">🏥</span><span class="lbl">CRM — پورتال فروش</span></div>
+    <div class="nav" onclick="location.href='../portal.html'" title="پورتال یکپارچه"><span class="ico">🏠</span><span class="lbl">پورتال یکپارچه</span></div>
+  </div>
 </nav>
 
 <!-- ══ CONTENT ══ -->
@@ -1642,7 +1647,21 @@ function loadS(){
     S.transactions.forEach(t=>{if(!t.ttacNo)t.ttacNo='';});
   }catch(e){S=seedState();}
 }
-function saveS(){ try{localStorage.setItem('atena_wms2',JSON.stringify(S));}catch(e){} }
+function saveS(){
+  try{localStorage.setItem('atena_wms2',JSON.stringify(S));}catch(e){}
+  try{
+    const totalQty=S.lots.reduce((s,l)=>s+l.qty,0);
+    const totalVal=S.lots.reduce((s,l)=>s+l.qty*(l.purchasePrice||0),0);
+    const pendAppr=S.transactions.filter(t=>t.status==='pending').length;
+    const activeProds=S.products.filter(p=>p.active).length;
+    const alertCount=(()=>{let c=0;
+      S.products.filter(p=>p.active).forEach(p=>{const t=S.lots.filter(l=>l.productId===p.id).reduce((s,l)=>s+l.qty,0);if(t<=15||t<=(p.reorderPoint||0))c++;});
+      S.lots.filter(l=>l.qty>0).forEach(l=>{const n=Math.floor((new Date(l.expiry)-new Date())/86400000);if(n<90)c++;});
+      return c;
+    })();
+    localStorage.setItem('atena_wms_bridge',JSON.stringify({ts:Date.now(),totalQty,totalVal,pendAppr,activeProds,alertCount}));
+  }catch(e){}
+}
 loadS();
 
 // ══════════════════════════════════════════

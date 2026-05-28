@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>آتنا زیست درمان — پورتال یکپارچه</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f8;--surface:#fff;--border:#e2e8f0;
+  --primary:#0284c7;--primary-dark:#0369a1;
+  --success:#16a34a;--warn:#d97706;--danger:#dc2626;--purple:#7c3aed;
+  --text1:#0f172a;--text2:#475569;--text3:#94a3b8;
+  --r:10px;--r2:14px;
+  font-family:Vazirmatn,Tahoma,sans-serif;
+}
+body{background:var(--bg);min-height:100vh;display:flex;flex-direction:column;}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:10;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-logo{width:36px;height:36px;background:linear-gradient(135deg,var(--primary),#0e7490);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;}
+.brand-name{font-size:16px;font-weight:700;color:var(--text1);}
+.brand-sub{font-size:11px;color:var(--text3);}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.user-chip{display:flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid var(--border);border-radius:20px;padding:4px 12px 4px 6px;font-size:13px;color:var(--text2);}
+.av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;}
+main{flex:1;padding:28px 24px;max-width:1100px;width:100%;margin:0 auto;}
+h2{font-size:22px;font-weight:700;color:var(--text1);margin-bottom:6px;}
+.sub{font-size:13px;color:var(--text3);margin-bottom:24px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:32px;}
+@media(max-width:700px){.grid-2{grid-template-columns:1fr;}}
+.sys-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:box-shadow .2s,transform .15s;cursor:pointer;display:flex;flex-direction:column;}
+.sys-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.1);transform:translateY(-2px);}
+.sys-card-hdr{padding:20px 20px 16px;display:flex;align-items:center;gap:14px;}
+.sys-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+.sys-icon.crm{background:linear-gradient(135deg,#dbeafe,#bfdbfe);}
+.sys-icon.wms{background:linear-gradient(135deg,#d1fae5,#a7f3d0);}
+.sys-title{font-size:17px;font-weight:700;color:var(--text1);}
+.sys-desc{font-size:12px;color:var(--text3);margin-top:2px;}
+.sys-stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border-top:1px solid var(--border);}
+.st{background:var(--surface);padding:14px 16px;}
+.st-val{font-size:20px;font-weight:700;color:var(--text1);line-height:1.1;}
+.st-lbl{font-size:11px;color:var(--text3);margin-top:2px;}
+.sys-card-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.open-btn{background:var(--primary);color:#fff;border:none;border-radius:var(--r);padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;}
+.open-btn:hover{background:var(--primary-dark);}
+.open-btn.wms{background:var(--success);}
+.open-btn.wms:hover{background:#15803d;}
+.tag{font-size:11px;background:#f1f5f9;color:var(--text3);border-radius:20px;padding:3px 10px;}
+.tag.live{background:#dcfce7;color:#15803d;}
+.tag.offline{background:#fef3c7;color:#92400e;}
+.alerts-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+.al-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;}
+.al-chip.red{background:#fef2f2;color:#991b1b;}
+.al-chip.orange{background:#fff7ed;color:#c2410c;}
+.al-chip.yellow{background:#fefce8;color:#854d0e;}
+.al-chip.green{background:#f0fdf4;color:#15803d;}
+.section-title{font-size:14px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.activity-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;}
+.act-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background .1s;}
+.act-row:last-child{border-bottom:none;}
+.act-row:hover{background:#f8fafc;}
+.act-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.act-icon.entry{background:#dcfce7;}
+.act-icon.exit{background:#fee2e2;}
+.act-main{flex:1;min-width:0;}
+.act-title{font-size:13px;color:var(--text1);font-weight:600;}
+.act-sub{font-size:11px;color:var(--text3);}
+.act-time{font-size:11px;color:var(--text3);flex-shrink:0;}
+.badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;}
+.badge.pend{background:#fef9c3;color:#a16207;}
+.badge.appr{background:#dcfce7;color:#15803d;}
+.badge.rej{background:#fee2e2;color:#991b1b;}
+.no-data{padding:24px;text-align:center;color:var(--text3);font-size:13px;}
+footer{text-align:center;padding:16px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);}
+.refresh-btn{background:none;border:1px solid var(--border);border-radius:var(--r);padding:6px 14px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;}
+.refresh-btn:hover{background:#f1f5f9;}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="brand-logo">🏥</div>
+    <div>
+      <div class="brand-name">آتنا زیست درمان</div>
+      <div class="brand-sub">سیستم یکپارچه مدیریت فروش و انبار</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <button class="refresh-btn" onclick="loadAll()">↻ بروزرسانی</button>
+    <div class="user-chip" id="userChip" style="display:none">
+      <div class="av" id="userAv" style="background:var(--primary)">؟</div>
+      <span id="userName">کاربر</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div>
+    <h2>خوش آمدید 👋</h2>
+    <p class="sub" id="greetSub">وضعیت کلی هر دو سیستم را از اینجا ببینید</p>
+  </div>
+
+  <!-- Alerts row -->
+  <div class="alerts-row" id="alertsRow"></div>
+
+  <!-- System cards -->
+  <div class="grid-2">
+    <!-- CRM Card -->
+    <div class="sys-card" onclick="openCRM()">
+      <div class="sys-card-hdr">
+        <div class="sys-icon crm">🏥</div>
+        <div>
+          <div class="sys-title">CRM — پورتال فروش</div>
+          <div class="sys-desc">مدیریت مراکز پزشکی و نمایندگان فروش</div>
+        </div>
+      </div>
+      <div class="sys-stats" id="crmStats">
+        <div class="st"><div class="st-val" id="crm-s1">—</div><div class="st-lbl">مراکز فعال</div></div>
+        <div class="st"><div class="st-val" id="crm-s2">—</div><div class="st-lbl">استان‌های پوشش</div></div>
+        <div class="st"><div class="st-val" id="crm-s3">—</div><div class="st-lbl">پیگیری‌های امروز</div></div>
+        <div class="st"><div class="st-val" id="crm-s4">—</div><div class="st-lbl">آخرین sync</div></div>
+      </div>
+      <div class="sys-card-footer">
+        <span class="tag" id="crmStatus">بررسی...</span>
+        <button class="open-btn" onclick="event.stopPropagation();openCRM()">ورود به CRM ←</button>
+      </div>
+    </div>
+
+    <!-- WMS Card -->
+    <div class="sys-card" onclick="openWMS()">
+      <div class="sys-card-hdr">
+        <div class="sys-icon wms">📦</div>
+        <div>
+          <div class="sys-title">WMS — سیستم انبار</div>
+          <div class="sys-desc">مدیریت موجودی، ورود/خروج، FEFO، IMED</div>
+        </div>
+      </div>
+      <div class="sys-stats" id="wmsStats">
+        <div class="st"><div class="st-val" id="wms-s1">—</div><div class="st-lbl">کل موجودی (عدد)</div></div>
+        <div class="st"><div class="st-val" id="wms-s2">—</div><div class="st-lbl">ارزش انبار (م.ت)</div></div>
+        <div class="st"><div class="st-val" id="wms-s3">—</div><div class="st-lbl">تأییدیه‌های معلق</div></div>
+        <div class="st"><div class="st-val" id="wms-s4">—</div><div class="st-lbl">هشدارهای فعال</div></div>
+      </div>
+      <div class="sys-card-footer">
+        <span class="tag offline" id="wmsStatus">localStorage</span>
+        <button class="open-btn wms" onclick="event.stopPropagation();openWMS()">ورود به انبار ←</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent WMS Transactions -->
+  <div id="recentSection" style="display:none">
+    <div class="section-title">📋 آخرین تراکنش‌های انبار</div>
+    <div class="activity-list" id="recentTxns"></div>
+  </div>
+</main>
+
+<footer>آتنا زیست درمان © ۱۴۰۴ — نسخه ۱.۰ یکپارچه</footer>
+
+<script>
+const WMS_KEY = 'atena_wms2';
+const WMS_BRIDGE = 'atena_wms_bridge';
+const CRM_SESS = 'crm_sess';
+const CRM_CENTS = 'crm_cache_cents';
+
+function toJalali(y,m,d){
+  const a=Math.floor((14+m-1)/12);const b=y+4800-a;const c=m+12*a-3;
+  let jdn=d+Math.floor((153*c+2)/5)+365*b+Math.floor(b/4)-Math.floor(b/100)+Math.floor(b/400)-32045;
+  let l=jdn-1948440+10632;const n=Math.floor((l-1)/10631);l=l-10631*n+354;
+  const j=(Math.floor((10985-l)/5316))*(Math.floor((50*l)/17719))+(Math.floor(l/5765))*(Math.floor((179*l)/10174));
+  l=l-(Math.floor((30-j)/15))*(Math.floor((17719*j)/50))-(Math.floor(j/16))*(Math.floor((10174*j)/179))+38;
+  const jj=Math.floor((20*l-2)/6488);l=l-Math.floor((6488*jj)/20);
+  const jd2=Math.floor((196*l)/6080);const jm2=jj+3-12*Math.floor(jj/10);const jd=l-Math.floor((6080*jd2)/196);
+  const jy2=100*(n-49)+jj+Math.floor(jj/10);const jy=jy2-679;const jm=jm2;
+  return {jy,jm,jd};
+}
+function fmtDate(d){
+  if(!d) return '—';
+  const dt=new Date(d);
+  if(isNaN(dt)) return '—';
+  const j=toJalali(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+  return `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`;
+}
+function fmt(n){return (n||0).toLocaleString('fa-IR');}
+
+function loadAll(){
+  loadWMS();
+  loadCRM();
+}
+
+function loadWMS(){
+  try{
+    // Try fast bridge first
+    const bridge=JSON.parse(localStorage.getItem(WMS_BRIDGE)||'null');
+    if(bridge){
+      document.getElementById('wms-s1').textContent=fmt(bridge.totalQty);
+      document.getElementById('wms-s2').textContent=fmt(Math.round(bridge.totalVal/1000000));
+      document.getElementById('wms-s3').textContent=fmt(bridge.pendAppr);
+      document.getElementById('wms-s4').textContent=fmt(bridge.alertCount);
+      document.getElementById('wmsStatus').textContent='داده موجود';
+      document.getElementById('wmsStatus').className='tag live';
+    }
+    // Full data for alerts + recent transactions
+    const raw=localStorage.getItem(WMS_KEY);
+    if(!raw){
+      if(!bridge) setWMSEmpty();
+      return;
+    }
+    const S=JSON.parse(raw);
+    if(!bridge){
+      const total=S.lots.reduce((s,l)=>s+l.qty,0);
+      const val=S.lots.reduce((s,l)=>s+l.qty*(l.purchasePrice||0),0);
+      const pend=S.transactions.filter(t=>t.status==='pending').length;
+      const alerts=countAlerts(S);
+      document.getElementById('wms-s1').textContent=fmt(total);
+      document.getElementById('wms-s2').textContent=fmt(Math.round(val/1000000));
+      document.getElementById('wms-s3').textContent=fmt(pend);
+      document.getElementById('wms-s4').textContent=fmt(alerts);
+      document.getElementById('wmsStatus').textContent='داده موجود';
+      document.getElementById('wmsStatus').className='tag live';
+    }
+    buildAlertChips(S);
+    buildRecentTxns(S);
+  } catch(e){
+    setWMSEmpty();
+  }
+}
+
+function setWMSEmpty(){
+  document.getElementById('wms-s1').textContent='—';
+  document.getElementById('wms-s2').textContent='—';
+  document.getElementById('wms-s3').textContent='—';
+  document.getElementById('wms-s4').textContent='—';
+  document.getElementById('wmsStatus').textContent='داده‌ای یافت نشد';
+  document.getElementById('wmsStatus').className='tag';
+}
+
+function countAlerts(S){
+  let c=0;
+  S.products.filter(p=>p.active).forEach(p=>{
+    const t=S.lots.filter(l=>l.productId===p.id).reduce((s,l)=>s+l.qty,0);
+    if(t<=15||t<=(p.reorderPoint||0)) c++;
+  });
+  S.lots.filter(l=>l.qty>0).forEach(l=>{
+    const n=Math.floor((new Date(l.expiry)-new Date())/86400000);
+    if(n<90) c++;
+  });
+  return c;
+}
+
+function buildAlertChips(S){
+  const chips=[];
+  const pend=S.transactions.filter(t=>t.status==='pending').length;
+  if(pend>0) chips.push({cl:'orange',ico:'⏳',txt:`${pend} تأییدیه معلق در انبار`,url:'warehouse/atena_wms_v142.html'});
+  const expired=S.lots.filter(l=>{const n=Math.floor((new Date(l.expiry)-new Date())/86400000);return l.qty>0&&n<0;}).length;
+  if(expired>0) chips.push({cl:'red',ico:'💀',txt:`${expired} Lot منقضی‌شده`,url:'warehouse/atena_wms_v142.html'});
+  const nearExp=S.lots.filter(l=>{const n=Math.floor((new Date(l.expiry)-new Date())/86400000);return l.qty>0&&n>=0&&n<90;}).length;
+  if(nearExp>0) chips.push({cl:'yellow',ico:'⏰',txt:`${nearExp} Lot نزدیک انقضا`,url:'warehouse/atena_wms_v142.html'});
+  const imedPend=S.transactions.filter(t=>t.imedStatus!=='registered'&&t.status==='approved').length;
+  if(imedPend>0) chips.push({cl:'orange',ico:'🏛️',txt:`${imedPend} ثبت IMED معلق`,url:'warehouse/atena_wms_v142.html'});
+  const zeroStock=S.products.filter(p=>{const t=S.lots.filter(l=>l.productId===p.id).reduce((s,l)=>s+l.qty,0);return p.active&&t===0;}).length;
+  if(zeroStock>0) chips.push({cl:'red',ico:'🚨',txt:`${zeroStock} کالا با موجودی صفر`,url:'warehouse/atena_wms_v142.html'});
+  if(chips.length===0) chips.push({cl:'green',ico:'✅',txt:'وضعیت انبار مناسب است',url:null});
+  const el=document.getElementById('alertsRow');
+  el.innerHTML=chips.map(c=>`<div class="al-chip ${c.cl}" style="cursor:${c.url?'pointer':'default'}" ${c.url?`onclick="location.href='${c.url}'"`:''}>
+    <span>${c.ico}</span><span>${c.txt}</span>
+  </div>`).join('');
+}
+
+function buildRecentTxns(S){
+  const recent=[...S.transactions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6);
+  if(recent.length===0){document.getElementById('recentSection').style.display='none';return;}
+  document.getElementById('recentSection').style.display='';
+  const prodMap={};S.products.forEach(p=>prodMap[p.id]=p.name||p.fullName||p.id);
+  const statusMap={pending:'<span class="badge pend">معلق</span>',approved:'<span class="badge appr">تأیید</span>',rejected:'<span class="badge rej">رد</span>'};
+  document.getElementById('recentTxns').innerHTML=recent.map(t=>`
+    <div class="act-row">
+      <div class="act-icon ${t.type}"><span>${t.type==='entry'?'📥':'📤'}</span></div>
+      <div class="act-main">
+        <div class="act-title">${prodMap[t.productId]||t.productId} &nbsp; <code style="font-size:11px;color:var(--text3)">${t.txnNo||''}</code></div>
+        <div class="act-sub">${t.type==='entry'?'ورود':'خروج'} &nbsp;·&nbsp; ${fmt(t.qty)} عدد</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${statusMap[t.status]||''}
+        <span class="act-time">${fmtDate(t.date)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function loadCRM(){
+  try{
+    const sess=JSON.parse(localStorage.getItem(CRM_SESS)||'null');
+    const cents=JSON.parse(localStorage.getItem(CRM_CENTS)||'null');
+    if(sess&&sess.d){
+      document.getElementById('userChip').style.display='flex';
+      document.getElementById('userName').textContent=sess.d.name||'کاربر';
+      document.getElementById('userAv').textContent=(sess.d.name||'؟')[0];
+      document.getElementById('greetSub').textContent=`سلام ${sess.d.name} — وضعیت کلی هر دو سیستم را از اینجا ببینید`;
+    }
+    if(cents&&cents.length){
+      document.getElementById('crm-s1').textContent=fmt(cents.filter(c=>!c.inactive).length);
+      const provs=new Set(cents.map(c=>c.province_id||c.province).filter(Boolean));
+      document.getElementById('crm-s2').textContent=fmt(provs.size);
+      document.getElementById('crmStatus').textContent='داده موجود';
+      document.getElementById('crmStatus').className='tag live';
+    } else {
+      document.getElementById('crm-s1').textContent='—';
+      document.getElementById('crm-s2').textContent='—';
+      document.getElementById('crmStatus').textContent='ابتدا وارد CRM شوید';
+      document.getElementById('crmStatus').className='tag';
+    }
+    // Follow-ups today from server sync timestamp
+    const syncTs=sess?new Date(sess.ts||0):null;
+    document.getElementById('crm-s3').textContent='—';
+    document.getElementById('crm-s4').textContent=syncTs?fmtDate(syncTs):'—';
+  } catch(e){
+    document.getElementById('crm-s1').textContent='—';
+  }
+}
+
+function openCRM(){location.href='index.html';}
+function openWMS(){location.href='warehouse/atena_wms_v142.html';}
+
+loadAll();
+</script>
+</body>
+</html>
