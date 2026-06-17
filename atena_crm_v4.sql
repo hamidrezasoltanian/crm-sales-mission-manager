@@ -2638,3 +2638,106 @@ INSERT INTO `centers` (`id`, `province_id`, `row_num`, `name`, `potential`, `cen
 ('c339','tehran',339,'تصویربرداری پایتخت',4,'مرکز تصویربرداری','مشتری','0/06%','Rambod.ghasemi'),
 ('c340','tehran',340,'رفیعی (آقای حسن رفیعی)',4,'فروشگاه','مشتری','0/06%','Rambod.ghasemi'),
 ('c341','tehran',341,'محب کوثر',4,'بیمارستان خصوصی','لید','0/06%','Rambod.ghasemi');
+
+-- ════════════════════════════════════════════════════════════════
+-- جدول week_tags — نام‌گذاری هفته‌های برنامه‌ریزی (اختیاری/کمپین)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS `week_tags` (
+  `id`         INT          NOT NULL AUTO_INCREMENT,
+  `name`       VARCHAR(100) NOT NULL,
+  `color`      VARCHAR(7)   NOT NULL DEFAULT '#0ea5e9',
+  `start_date` VARCHAR(12)  DEFAULT NULL COMMENT 'شروع هفته — تاریخ جلالی YYYY/MM/DD',
+  `end_date`   VARCHAR(12)  DEFAULT NULL COMMENT 'پایان هفته — تاریخ جلالی YYYY/MM/DD',
+  `created_by` VARCHAR(100) NOT NULL,
+  `created_at` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_dates` (`start_date`, `end_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ════════════════════════════════════════════════════════════════
+-- جدول week_entries — برنامه هفتگی بازدید/تماس با مراکز
+-- کلید منطقی: week_id + record_type + record_id
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS `week_entries` (
+  `id`             INT          NOT NULL AUTO_INCREMENT,
+  `week_id`        VARCHAR(12)  NOT NULL COMMENT 'تاریخ شروع هفته — جلالی YYYY/MM/DD',
+  `record_type`    VARCHAR(20)  NOT NULL COMMENT 'center | pc',
+  `record_id`      VARCHAR(255) NOT NULL,
+  `scheduled_date` VARCHAR(12)  DEFAULT NULL COMMENT 'روز اجرا — تاریخ جلالی YYYY/MM/DD',
+  `action_type`    VARCHAR(20)  NOT NULL DEFAULT 'call' COMMENT 'call | visit',
+  `done`           TINYINT(1)   NOT NULL DEFAULT 0,
+  `done_date`      VARCHAR(12)  DEFAULT NULL COMMENT 'تاریخ انجام — جلالی YYYY/MM/DD',
+  `created_by`     VARCHAR(100) NOT NULL,
+  `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_week_record` (`week_id`, `record_type`, `record_id`(191)),
+  KEY `idx_week`       (`week_id`),
+  KEY `idx_record`     (`record_type`, `record_id`(191)),
+  KEY `idx_creator`    (`created_by`, `week_id`),
+  KEY `idx_scheduled`  (`scheduled_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- migration: اگر از نسخه قبل ارتقا می‌دهید
+ALTER TABLE `week_entries`
+  MODIFY COLUMN `week_id` VARCHAR(12) NOT NULL,
+  MODIFY COLUMN `record_type` VARCHAR(20) NOT NULL,
+  MODIFY COLUMN `action_type` VARCHAR(20) NOT NULL DEFAULT 'call';
+
+-- ════════════════════════════════════════════════════════════════
+-- مدیریت کاربران — فیلدهای تکمیلی (اگر از نسخه قدیمی ارتقا می‌دهید)
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `full_name`   VARCHAR(200) DEFAULT NULL AFTER `display_name`,
+  ADD COLUMN IF NOT EXISTS `phone`       VARCHAR(20)  DEFAULT NULL AFTER `full_name`,
+  ADD COLUMN IF NOT EXISTS `email`       VARCHAR(150) DEFAULT NULL AFTER `phone`,
+  ADD COLUMN IF NOT EXISTS `updated_at`  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`,
+  ADD INDEX IF NOT EXISTS `idx_email` (`email`);
+
+-- ════════════════════════════════════════════════════════════════
+-- نمای کمکی: مراکز با آخرین وضعیت و مسئول (VIEW)
+-- برای گزارش‌گیری سریع بدون JOIN در کد PHP
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE VIEW `v_centers_full` AS
+SELECT
+  c.id,
+  c.province_id,
+  c.row_num,
+  c.name,
+  c.potential,
+  c.center_type,
+  c.lead_type,
+  c.weight,
+  COALESCE(ro.owner, c.owner) AS owner,
+  re.status,
+  re.lead_type     AS edit_lead,
+  re.followup_date,
+  re.followup_text,
+  re.updated_at    AS last_edit_at
+FROM centers c
+LEFT JOIN record_owners ro ON ro.record_type = 'center' AND ro.record_id = c.id
+LEFT JOIN record_edits  re ON re.record_type = 'center' AND re.record_id = c.id;
+
+CREATE OR REPLACE VIEW `v_province_centers_full` AS
+SELECT
+  pc.id,
+  pc.province_id,
+  pc.row_num,
+  pc.name,
+  pc.potential,
+  pc.center_type,
+  pc.lead_type,
+  COALESCE(ro.owner, pc.owner) AS owner,
+  re.status,
+  re.lead_type     AS edit_lead,
+  re.followup_date,
+  re.followup_text,
+  re.updated_at    AS last_edit_at
+FROM province_centers pc
+LEFT JOIN record_owners ro ON ro.record_type = 'pc' AND ro.record_id = pc.id
+LEFT JOIN record_edits  re ON re.record_type = 'pc' AND re.record_id = pc.id;
+
+-- ════════════════════════════════════════════════════════════════
+-- SET FOREIGN_KEY_CHECKS = 1 در انتها
+-- ════════════════════════════════════════════════════════════════
+SET FOREIGN_KEY_CHECKS = 1;

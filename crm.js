@@ -1933,38 +1933,68 @@ function confirmClearOldData(){
 }
 
 // ============================================================
-// USER MANAGEMENT (continued)
+// USER MANAGEMENT — API-based (کاملاً متصل به سرور)
 // ============================================================
-function openUserMgmt(){
-  // FIX: فقط super_admin
-  if(!getUser(currentUser)||!getUser(currentUser).isSuperAdmin){alert('فقط ادمین سیستم دسترسی دارد');return;}
-  refreshOwnerFA();
-  const all=getAllUsers();
+
+function _renderUserMgmtBody(users){
   const body=document.getElementById('userMgmtBody');
+  if(!users||!Object.keys(users).length){
+    body.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8">کاربری یافت نشد</div>';
+    return;
+  }
   body.innerHTML='<div style="margin-bottom:12px;font-size:12px;color:#64748b">کلیک روی ویرایش برای تغییر نام، نقش یا رمز</div>'
-    +Object.keys(all).map(k=>{
-      const u=all[k];
-      const inact=u.inactive?true:false;
+    +Object.keys(users).map(k=>{
+      const u=users[k];
+      const inact=u.inactive||u.is_inactive?true:false;
+      const isMgr=u.isManager||u.is_manager?true:false;
+      const isSA=u.isSuperAdmin||u.is_super_admin?true:false;
       return`<div class="user-row${inact?' user-inactive':''}">
         <div style="flex:1">
-          <div class="user-row-name">${u.name}</div>
-          <div style="display:flex;gap:8px;margin-top:2px">
+          <div class="user-row-name">${u.name||u.display_name||k}</div>
+          <div style="display:flex;gap:8px;margin-top:2px;flex-wrap:wrap">
             <span class="user-row-role">${u.role||''}</span>
             <span class="user-row-un">@${k}</span>
-            ${u.isManager?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:6px">مدیر</span>':''}
+            ${isSA?'<span style="font-size:10px;background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:6px">سوپر ادمین</span>':''}
+            ${isMgr&&!isSA?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:6px">مدیر</span>':''}
             ${inact?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:6px">غیرفعال</span>':''}
           </div>
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn-user-edit" onclick="openEditUserForm('${k}')">✏️ ویرایش</button>
-          ${!u.isManager?(inact
+          ${!isSA?(inact
             ?`<button class="btn-user-act" onclick="activateUser('${k}')">✅ فعال</button>`
             :`<button class="btn-user-deact" onclick="startDeactivate('${k}')">🚫 غیرفعال</button>`)
           :''}
         </div>
       </div>`;
     }).join('');
+}
+
+async function openUserMgmt(){
+  if(!getUser(currentUser)||!getUser(currentUser).isSuperAdmin){
+    alert('فقط سوپر ادمین سیستم دسترسی دارد');return;
+  }
+  const body=document.getElementById('userMgmtBody');
+  body.innerHTML='<div style="text-align:center;padding:24px;color:#64748b">⏳ در حال بارگذاری...</div>';
   document.getElementById('userMgmtModal').style.display='flex';
+  try{
+    const res=await apiCall('GET','/users/manage.php');
+    if(!res.ok)throw new Error(res.err||'error');
+    const merged={};
+    (res.users||[]).forEach(u=>{
+      merged[u.username]={
+        name:u.display_name,role:u.role,
+        isManager:!!u.is_manager,isSuperAdmin:!!u.is_super_admin,
+        inactive:!!u.is_inactive
+      };
+    });
+    _DYNAMIC_USERS=merged;
+    refreshOwnerFA();
+    _renderUserMgmtBody(merged);
+  }catch(e){
+    // fallback به داده‌های حافظه
+    _renderUserMgmtBody(getAllUsers());
+  }
 }
 function closeUserMgmt(e){
   if(e&&e.target!==document.getElementById('userMgmtModal'))return;
@@ -1974,8 +2004,9 @@ function closeUserMgmt(e){
 
 let editingUser=null;
 function openAddUserForm(){
-  // FIX: فقط super_admin
-  if(!getUser(currentUser)||!getUser(currentUser).isSuperAdmin){alert('فقط ادمین سیستم دسترسی دارد');return;}
+  if(!getUser(currentUser)||!getUser(currentUser).isSuperAdmin){
+    alert('فقط سوپر ادمین سیستم دسترسی دارد');return;
+  }
   editingUser=null;
   document.getElementById('addUserTitle').textContent='➕ کارشناس جدید';
   document.getElementById('auName').value='';
@@ -1983,61 +2014,65 @@ function openAddUserForm(){
   document.getElementById('auRole').value='کارشناس تمام‌وقت';
   document.getElementById('auPass').value='';
   document.getElementById('auPassRow').style.display='';
+  document.getElementById('auPassRow').querySelector('label').textContent='رمز عبور اولیه (حداقل ۶ کاراکتر)';
   document.getElementById('auUsername').disabled=false;
   document.getElementById('addUserError').style.display='none';
+  document.getElementById('addUserSaveBtn').disabled=false;
   document.getElementById('addUserModal').style.display='flex';
 }
 function openEditUserForm(uname){
   const u=getUser(uname);if(!u)return;
   editingUser=uname;
   document.getElementById('addUserTitle').textContent='✏️ ویرایش کارشناس';
-  document.getElementById('auName').value=u.name;
+  document.getElementById('auName').value=u.name||'';
   document.getElementById('auUsername').value=uname;
   document.getElementById('auRole').value=u.role||'';
   document.getElementById('auPass').value='';
-  document.getElementById('auPassRow').querySelector('label').textContent='رمز جدید (خالی = بدون تغییر)';
+  document.getElementById('auPassRow').querySelector('label').textContent='رمز جدید (خالی = بدون تغییر، حداقل ۶ کاراکتر)';
   document.getElementById('auUsername').disabled=true;
   document.getElementById('addUserError').style.display='none';
+  document.getElementById('addUserSaveBtn').disabled=false;
   document.getElementById('addUserModal').style.display='flex';
 }
 function closeAddUser(e){
   if(e&&e.target!==document.getElementById('addUserModal'))return;
   document.getElementById('addUserModal').style.display='none';
 }
-function saveUserForm(){
+async function saveUserForm(){
   const name=document.getElementById('auName').value.trim();
   const uname=document.getElementById('auUsername').value.trim().toLowerCase();
   const role=document.getElementById('auRole').value.trim();
   const pass=document.getElementById('auPass').value;
   const err=document.getElementById('addUserError');
+  const btn=document.getElementById('addUserSaveBtn');
   err.style.display='none';
   if(!name){err.textContent='نام نمایشی الزامی است';err.style.display='block';return;}
   if(!editingUser){
     if(!uname){err.textContent='نام کاربری الزامی است';err.style.display='block';return;}
-    if(!/^[a-z0-9_]+$/.test(uname)){err.textContent='نام کاربری فقط حروف انگلیسی کوچک، عدد و _ مجاز است';err.style.display='block';return;}
-    if(getUser(uname)){err.textContent='این نام کاربری قبلاً وجود دارد';err.style.display='block';return;}
-    if(pass.length<4){err.textContent='رمز عبور حداقل ۴ کاراکتر';err.style.display='block';return;}
-    const extra=loadDynamicUsers();
-    const isNewManager=document.getElementById('addUserModal').dataset.isManager==='true';
-    extra[uname]={name,role,pass,isManager:isNewManager||false};
-    delete document.getElementById('addUserModal').dataset.isManager;
-    saveDynamicUsers(extra);
-    /* FIX: password via server API */
+    if(!/^[a-zA-Z0-9_.]+$/.test(uname)){err.textContent='نام کاربری: فقط حروف انگلیسی، عدد، _ و . مجاز است';err.style.display='block';return;}
+    if(pass.length<6){err.textContent='رمز عبور حداقل ۶ کاراکتر';err.style.display='block';return;}
+    btn.disabled=true;btn.textContent='در حال ذخیره...';
+    try{
+      const res=await apiCall('POST','/users/manage.php',{action:'add',username:uname,display_name:name,role:role||'کارشناس',password:pass});
+      if(!res.ok){
+        err.textContent=res.err==='duplicate'?'این نام کاربری قبلاً وجود دارد':(res.err==='password_too_short'?'رمز کوتاه است':(res.err||'خطا در ذخیره'));
+        err.style.display='block';return;
+      }
+    }catch(e){
+      err.textContent='خطا در اتصال به سرور: '+(e.message||'');err.style.display='block';return;
+    }finally{btn.disabled=false;btn.textContent='ذخیره';}
   }else{
-    const all=getAllUsers();
-    const isDefault=!!USERS_DEFAULT[editingUser];
-    if(isDefault){
-      // can only update name and role in extra layer
-      const extra=loadDynamicUsers();
-      if(!extra[editingUser])extra[editingUser]={};
-      extra[editingUser].name=name;extra[editingUser].role=role;
-      saveDynamicUsers(extra);
-    }else{
-      const extra=loadDynamicUsers();
-      extra[editingUser].name=name;extra[editingUser].role=role;
-      saveDynamicUsers(extra);
-    }
-    /* FIX: password via server API — not localStorage */
+    btn.disabled=true;btn.textContent='در حال ذخیره...';
+    try{
+      const res=await apiCall('POST','/users/manage.php',{action:'edit',username:editingUser,display_name:name,role});
+      if(!res.ok){err.textContent=res.err||'خطا در ذخیره';err.style.display='block';return;}
+      if(pass.length>=6){
+        const res2=await apiCall('POST','/users/manage.php',{action:'reset_pass',username:editingUser,new_pass:pass});
+        if(!res2.ok){err.textContent='اطلاعات ذخیره شد اما رمز تغییر نکرد: '+(res2.err||'');err.style.display='block';}
+      }
+    }catch(e){
+      err.textContent='خطا در اتصال به سرور: '+(e.message||'');err.style.display='block';return;
+    }finally{btn.disabled=false;btn.textContent='ذخیره';}
   }
   document.getElementById('addUserModal').style.display='none';
   openUserMgmt();
@@ -2047,99 +2082,39 @@ let deactivatingUser=null;
 function startDeactivate(uname){
   deactivatingUser=uname;
   const active=getActiveUsers();
-  const targets=Object.keys(active).filter(k=>k!==uname&&!active[k].isManager);
+  const targets=Object.keys(active).filter(k=>k!==uname&&!(active[k].isManager||active[k].isSuperAdmin));
+  if(!targets.length){alert('کارشناس فعال دیگری برای انتقال وجود ندارد');return;}
   const sel=document.getElementById('reassignTarget');
   sel.innerHTML=targets.map(k=>`<option value="${k}">${active[k].name}</option>`).join('');
   document.getElementById('reassignInfo').textContent=
-    `کارشناس "${getUser(uname).name}" غیرفعال خواهد شد. مراکز و استان‌های ایشان به کارشناس زیر منتقل می‌شود:`;
+    `کارشناس «${(getUser(uname)||{}).name||uname}» غیرفعال خواهد شد. مراکز و استان‌های ایشان به کارشناس زیر منتقل می‌شود:`;
   document.getElementById('reassignModal').style.display='flex';
 }
-function activateUser(uname){
-  const extra=loadDynamicUsers();
-  if(extra[uname])extra[uname].inactive=false;
-  saveDynamicUsers(extra);
+async function activateUser(uname){
+  try{
+    const res=await apiCall('POST','/users/manage.php',{action:'activate',username:uname});
+    if(!res.ok){alert('خطا: '+(res.err||'error'));return;}
+  }catch(e){alert('خطا در اتصال به سرور');return;}
   openUserMgmt();
 }
-function confirmReassign(){
+async function confirmReassign(){
   if(!deactivatingUser)return;
   const target=document.getElementById('reassignTarget').value;
   if(!target)return;
-  // cascade provinces
-  PROVINCES.forEach(r=>{
-    const e=getEdit('provinces',r.id);
-    if((e.owner||r.owner)===deactivatingUser){
-      if(!userEdits.provinces[r.id])userEdits.provinces[r.id]={};
-      userEdits.provinces[r.id].owner=target;
-    }
-  });
-  // cascade centers
-  CENTERS.forEach(r=>{
-    const e=getEdit('centers',r.id);
-    if((e.owner||r.owner)===deactivatingUser){
-      if(!userEdits.centers[r.id])userEdits.centers[r.id]={};
-      userEdits.centers[r.id].owner=target;
-    }
-  });
-  // cascade pc
-  PROVINCES.forEach(prov=>{
-    const pk=pkey(prov.name);
-    const raw=PROVINCE_CENTERS_RAW[pk]||[];
-    raw.forEach((c,i)=>{
-      const id=pk+'||'+i;
-      const e=userEdits.pc[id]||{};
-      if((e.owner||prov.owner)===deactivatingUser){
-        if(!userEdits.pc[id])userEdits.pc[id]={};
-        userEdits.pc[id].owner=target;
-      }
-    });
-  });
-  saveEdits();
-  // mark inactive
-  const isDefault=!!USERS_DEFAULT[deactivatingUser];
-  const extra=loadDynamicUsers();
-  if(isDefault){if(!extra[deactivatingUser])extra[deactivatingUser]={};extra[deactivatingUser].inactive=true;}
-  else{if(extra[deactivatingUser])extra[deactivatingUser].inactive=true;}
-  saveDynamicUsers(extra);
+  try{
+    const res=await apiCall('POST','/users/manage.php',{action:'reassign',from:deactivatingUser,to:target});
+    if(!res.ok){alert('خطا: '+(res.err||'error'));return;}
+  }catch(e){alert('خطا در اتصال به سرور');return;}
   document.getElementById('reassignModal').style.display='none';
   deactivatingUser=null;
+  // بارگذاری مجدد داده‌ها با owner جدید
+  await loadStaticData().catch(()=>{});
   refreshOwnerFA();rebuildOwnerFilter();
   openUserMgmt();
   renderTable();renderDashboard();
 }
 
 // ============================================================
-// AUDIT TRAIL MODAL
-// ============================================================
-function openAuditModal(type,id,name){
-  const e=getEdit(type,id);
-  const audit=(e.audit||[]).slice().reverse();
-  document.getElementById('auditModalTitle').textContent='📋 تاریخچه — '+name;
-  const el=document.getElementById('auditList');
-  if(!audit.length){el.innerHTML='<div class="audit-empty">هنوز تغییری ثبت نشده است</div>';
-  }else{
-    el.innerHTML='<div class="audit-list">'+audit.map(a=>{
-      const uname=(getUser(a.user)||{}).name||a.user;
-      let txt='';
-      if(a.field==='status')txt=`وضعیت از «${a.from}» به «${a.to}» تغییر یافت`;
-      else if(a.field==='lead')txt=`سرنخ از «${a.from}» به «${a.to}» تغییر یافت`;
-      else txt=`${a.field}: ${a.from} ← ${a.to}`;
-      return`<div class="audit-item"><span class="audit-ts">${tsToFa(a.ts)}</span><span class="audit-user">${uname}</span><span class="audit-text">${txt}</span></div>`;
-    }).join('')+'</div>';
-  }
-  document.getElementById('auditModal').style.display='flex';
-}
-function closeAuditModal(e){
-  if(e&&e.target!==document.getElementById('auditModal'))return;
-  document.getElementById('auditModal').style.display='none';
-}
-
-// ============================================================
-// PASSWORD MODAL
-// ============================================================
-function openPassModal(){document.getElementById('passModal').style.display='flex';['passOld','passNew','passConfirm'].forEach(i=>document.getElementById(i).value='');document.getElementById('passError').style.display='none';document.getElementById('passSuccess').style.display='none';}
-function closePassModal(e){if(e&&e.target!==document.getElementById('passModal'))return;document.getElementById('passModal').style.display='none';}
-// changePassword — تعریف در بخش PASSWORD MODAL پایین‌تر
-
 // ============================================================
 // PRINT
 // ============================================================
@@ -2723,176 +2698,6 @@ function confirmClearOldData(){
 }
 
 // ============================================================
-// USER MANAGEMENT (continued)
-// ============================================================
-function openUserMgmt(){
-  refreshOwnerFA();
-  const all=getAllUsers();
-  const body=document.getElementById('userMgmtBody');
-  body.innerHTML='<div style="margin-bottom:12px;font-size:12px;color:#64748b">کلیک روی ویرایش برای تغییر نام، نقش یا رمز</div>'
-    +Object.keys(all).map(k=>{
-      const u=all[k];
-      const inact=u.inactive?true:false;
-      return`<div class="user-row${inact?' user-inactive':''}">
-        <div style="flex:1">
-          <div class="user-row-name">${u.name}</div>
-          <div style="display:flex;gap:8px;margin-top:2px">
-            <span class="user-row-role">${u.role||''}</span>
-            <span class="user-row-un">@${k}</span>
-            ${u.isManager?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:6px">مدیر</span>':''}
-            ${inact?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:6px">غیرفعال</span>':''}
-          </div>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn-user-edit" onclick="openEditUserForm('${k}')">✏️ ویرایش</button>
-          ${!u.isManager?(inact
-            ?`<button class="btn-user-act" onclick="activateUser('${k}')">✅ فعال</button>`
-            :`<button class="btn-user-deact" onclick="startDeactivate('${k}')">🚫 غیرفعال</button>`)
-          :''}
-        </div>
-      </div>`;
-    }).join('');
-  document.getElementById('userMgmtModal').style.display='flex';
-}
-function closeUserMgmt(e){
-  if(e&&e.target!==document.getElementById('userMgmtModal'))return;
-  document.getElementById('userMgmtModal').style.display='none';
-  refreshOwnerFA();rebuildOwnerFilter();renderTable();
-}
-
-
-function openAddUserForm(){
-  editingUser=null;
-  document.getElementById('addUserTitle').textContent='➕ کارشناس جدید';
-  document.getElementById('auName').value='';
-  document.getElementById('auUsername').value='';
-  document.getElementById('auRole').value='کارشناس تمام‌وقت';
-  document.getElementById('auPass').value='';
-  document.getElementById('auPassRow').style.display='';
-  document.getElementById('auUsername').disabled=false;
-  document.getElementById('addUserError').style.display='none';
-  document.getElementById('addUserModal').style.display='flex';
-}
-function openEditUserForm(uname){
-  const u=getUser(uname);if(!u)return;
-  editingUser=uname;
-  document.getElementById('addUserTitle').textContent='✏️ ویرایش کارشناس';
-  document.getElementById('auName').value=u.name;
-  document.getElementById('auUsername').value=uname;
-  document.getElementById('auRole').value=u.role||'';
-  document.getElementById('auPass').value='';
-  document.getElementById('auPassRow').querySelector('label').textContent='رمز جدید (خالی = بدون تغییر)';
-  document.getElementById('auUsername').disabled=true;
-  document.getElementById('addUserError').style.display='none';
-  document.getElementById('addUserModal').style.display='flex';
-}
-function closeAddUser(e){
-  if(e&&e.target!==document.getElementById('addUserModal'))return;
-  document.getElementById('addUserModal').style.display='none';
-}
-function saveUserForm(){
-  const name=document.getElementById('auName').value.trim();
-  const uname=document.getElementById('auUsername').value.trim().toLowerCase();
-  const role=document.getElementById('auRole').value.trim();
-  const pass=document.getElementById('auPass').value;
-  const err=document.getElementById('addUserError');
-  err.style.display='none';
-  if(!name){err.textContent='نام نمایشی الزامی است';err.style.display='block';return;}
-  if(!editingUser){
-    if(!uname){err.textContent='نام کاربری الزامی است';err.style.display='block';return;}
-    if(!/^[a-z0-9_]+$/.test(uname)){err.textContent='نام کاربری فقط حروف انگلیسی کوچک، عدد و _ مجاز است';err.style.display='block';return;}
-    if(getUser(uname)){err.textContent='این نام کاربری قبلاً وجود دارد';err.style.display='block';return;}
-    if(pass.length<4){err.textContent='رمز عبور حداقل ۴ کاراکتر';err.style.display='block';return;}
-    const extra=loadDynamicUsers();
-    const isNewManager=document.getElementById('addUserModal').dataset.isManager==='true';
-    extra[uname]={name,role,pass,isManager:isNewManager||false};
-    delete document.getElementById('addUserModal').dataset.isManager;
-    saveDynamicUsers(extra);
-    /* FIX: password via server API */
-  }else{
-    const all=getAllUsers();
-    const isDefault=!!USERS_DEFAULT[editingUser];
-    if(isDefault){
-      // can only update name and role in extra layer
-      const extra=loadDynamicUsers();
-      if(!extra[editingUser])extra[editingUser]={};
-      extra[editingUser].name=name;extra[editingUser].role=role;
-      saveDynamicUsers(extra);
-    }else{
-      const extra=loadDynamicUsers();
-      extra[editingUser].name=name;extra[editingUser].role=role;
-      saveDynamicUsers(extra);
-    }
-    /* FIX: password via server API — not localStorage */
-  }
-  document.getElementById('addUserModal').style.display='none';
-  openUserMgmt();
-}
-
-
-function startDeactivate(uname){
-  deactivatingUser=uname;
-  const active=getActiveUsers();
-  const targets=Object.keys(active).filter(k=>k!==uname&&!active[k].isManager);
-  const sel=document.getElementById('reassignTarget');
-  sel.innerHTML=targets.map(k=>`<option value="${k}">${active[k].name}</option>`).join('');
-  document.getElementById('reassignInfo').textContent=
-    `کارشناس "${getUser(uname).name}" غیرفعال خواهد شد. مراکز و استان‌های ایشان به کارشناس زیر منتقل می‌شود:`;
-  document.getElementById('reassignModal').style.display='flex';
-}
-function activateUser(uname){
-  const extra=loadDynamicUsers();
-  if(extra[uname])extra[uname].inactive=false;
-  saveDynamicUsers(extra);
-  openUserMgmt();
-}
-function confirmReassign(){
-  if(!deactivatingUser)return;
-  const target=document.getElementById('reassignTarget').value;
-  if(!target)return;
-  // cascade provinces
-  PROVINCES.forEach(r=>{
-    const e=getEdit('provinces',r.id);
-    if((e.owner||r.owner)===deactivatingUser){
-      if(!userEdits.provinces[r.id])userEdits.provinces[r.id]={};
-      userEdits.provinces[r.id].owner=target;
-    }
-  });
-  // cascade centers
-  CENTERS.forEach(r=>{
-    const e=getEdit('centers',r.id);
-    if((e.owner||r.owner)===deactivatingUser){
-      if(!userEdits.centers[r.id])userEdits.centers[r.id]={};
-      userEdits.centers[r.id].owner=target;
-    }
-  });
-  // cascade pc
-  PROVINCES.forEach(prov=>{
-    const pk=pkey(prov.name);
-    const raw=PROVINCE_CENTERS_RAW[pk]||[];
-    raw.forEach((c,i)=>{
-      const id=pk+'||'+i;
-      const e=userEdits.pc[id]||{};
-      if((e.owner||prov.owner)===deactivatingUser){
-        if(!userEdits.pc[id])userEdits.pc[id]={};
-        userEdits.pc[id].owner=target;
-      }
-    });
-  });
-  saveEdits();
-  // mark inactive
-  const isDefault=!!USERS_DEFAULT[deactivatingUser];
-  const extra=loadDynamicUsers();
-  if(isDefault){if(!extra[deactivatingUser])extra[deactivatingUser]={};extra[deactivatingUser].inactive=true;}
-  else{if(extra[deactivatingUser])extra[deactivatingUser].inactive=true;}
-  saveDynamicUsers(extra);
-  document.getElementById('reassignModal').style.display='none';
-  deactivatingUser=null;
-  refreshOwnerFA();rebuildOwnerFilter();
-  openUserMgmt();
-  renderTable();renderDashboard();
-}
-
 // ============================================================
 // AUDIT TRAIL MODAL
 // ============================================================

@@ -111,6 +111,42 @@ case 'edit':
     jsonOut(['ok' => true]);
     break;
 
+case 'reassign':
+    $from = trim($b['from'] ?? '');
+    $to   = trim($b['to']   ?? '');
+    if (!$from || !$to) jsonOut(['ok' => false, 'err' => 'missing'], 400);
+    if ($from === $user['username']) jsonOut(['ok' => false, 'err' => 'cannot_reassign_self'], 403);
+    // تأیید وجود هر دو کاربر
+    $chkFrom = $pdo->prepare("SELECT username FROM users WHERE username=? AND is_inactive=0");
+    $chkFrom->execute([$from]);
+    if (!$chkFrom->fetchColumn()) jsonOut(['ok' => false, 'err' => 'from_user_not_found'], 404);
+    $chkTo = $pdo->prepare("SELECT username FROM users WHERE username=? AND is_inactive=0");
+    $chkTo->execute([$to]);
+    if (!$chkTo->fetchColumn()) jsonOut(['ok' => false, 'err' => 'to_user_not_found'], 404);
+
+    $pdo->beginTransaction();
+    try {
+        // انتقال owner در جداول اصلی
+        $pdo->prepare("UPDATE provinces        SET owner=? WHERE owner=?")->execute([$to, $from]);
+        $pdo->prepare("UPDATE centers          SET owner=? WHERE owner=?")->execute([$to, $from]);
+        $pdo->prepare("UPDATE province_centers SET owner=? WHERE owner=?")->execute([$to, $from]);
+        // انتقال override‌های record_owners
+        $pdo->prepare("UPDATE record_owners SET owner=? WHERE owner=?")->execute([$to, $from]);
+        // غیرفعال‌سازی کاربر
+        $pdo->prepare("UPDATE users SET is_inactive=1 WHERE username=?")->execute([$from]);
+        $pdo->prepare("DELETE FROM sessions WHERE username=?")->execute([$from]);
+        $pdo->prepare("
+            INSERT INTO audit_trail(record_type,record_id,field_name,old_value,new_value,changed_by,changed_at)
+            VALUES('user',?,'_REASSIGN_AND_DEACTIVATE',?,?,?,?)
+        ")->execute([$from, $from, $to, $user['username'], (int)(microtime(true) * 1000)]);
+        $pdo->commit();
+        jsonOut(['ok' => true, 'from' => $from, 'to' => $to]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonOut(['ok' => false, 'err' => 'db_error', 'detail' => $e->getMessage()], 500);
+    }
+    break;
+
 default:
     jsonOut(['ok' => false, 'err' => 'unknown_action'], 400);
 }
